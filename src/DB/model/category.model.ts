@@ -35,8 +35,7 @@ export class Category implements ICategory {
     @Prop({type:Date})
     restoredAt?: Date 
 
-    @Prop({type:String,required:true})
-    assetFolderId:string
+ 
     @Prop({type:[{type:Types.ObjectId,ref:"Brand"}]})
     brands?: Types.ObjectId[] | IBrand[];
 

@@ -65,10 +65,9 @@ export class ProductService {
       if(!category){
         throw new NotFoundException('Category not found');
       }
-      const brand=await this.brandRepository.findOne({filter:{_id:createProductDto.brand}});
-      if(!brand){
-        throw new NotFoundException('Brand not found');
-      }
+      const brand = createProductDto.brand
+        ? await this.brandRepository.findOne({ filter: { _id: createProductDto.brand } })
+        : null;
       let assetFolderId:string=randomUUID();
       const filesArr = Array.isArray(file) ? file : (file ? [file] : []);
       const images=filesArr.map(f=>`${assetFolderId}/${f.finalPath}`);
@@ -77,10 +76,13 @@ export class ProductService {
       const normalizedVariants = this.normalizeVariants(variants as any[], originalPrice, discountPercent);
       const product=await this.productRepository.create({
         data:{
-          name,description,originalPrice,discountPercent,stock,brand:brand._id,category:category._id,
+          name,description,originalPrice,discountPercent,stock,
+          ...(brand? { brand: brand._id } : {}),
+          category:category._id,
           salePrice: computedSalePrice && computedSalePrice>0 ? computedSalePrice : 1,
           variants: normalizedVariants,
-          images,assetFolderId,createdBy:user._id,
+          images,
+          createdBy:user._id,
         }
       });
       if(!product){
@@ -158,7 +160,7 @@ export class ProductService {
     }
   
     if (files?.length) {
-      const newImages = files.map((file) => `${product.assetFolderId}/${file.finalPath}`);
+      const newImages = files.map((file) => `/${file.finalPath}`);
       images = images.concat(newImages);
     }
   
@@ -250,7 +252,7 @@ return product;
 
   async remove(productId: Types.ObjectId,user:UserDocument):Promise<string> {
     const product=await this.productRepository.findOneAndDelete({
-      filter:{_id:productId ,paranoId:false,freezedAt:{$exists:true}}
+      filter:{_id:productId ,}
    
     })
     if(!product){

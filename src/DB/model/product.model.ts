@@ -1,6 +1,7 @@
 import { MongooseModule, Prop, Schema, SchemaFactory } from "@nestjs/mongoose";
 import { HydratedDocument, Types, UpdateQuery } from "mongoose";
 import { IProduct } from "src/common/interfaces/product.interface";
+import { IBrand } from "src/common/interfaces/brand.interface";
 import slugify from "slugify";
 
 
@@ -17,8 +18,8 @@ export class Product implements IProduct {
     description?:string;
     @Prop({type:[String],required:true})
     images:string[];
-    @Prop({type:Types.ObjectId,required:true,ref:"Brand"})
-    brand: Types.ObjectId ;
+    @Prop({type:Types.ObjectId,required:false,ref:"Brand"})
+    brand?: Types.ObjectId | IBrand;
     @Prop({type:Types.ObjectId,required:true,ref:"Category"})
     category: Types.ObjectId ;
     @Prop({type:Number,default:0})
@@ -52,8 +53,7 @@ export class Product implements IProduct {
     freezedAt?: Date ;
     @Prop({type:Date})
     restoredAt?: Date ;
-@Prop({type:String,required:true})
-    assetFolderId:string;
+
 
 
 }

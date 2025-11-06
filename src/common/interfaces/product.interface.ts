@@ -17,7 +17,7 @@ export interface IProduct {
   stock:number;
   soldItems:number;
   category:Types.ObjectId | ICategory;
-  brand:Types.ObjectId | IBrand;
+  brand?:Types.ObjectId | IBrand;
   createdBy:Types.ObjectId | IUser;
   updatedBy?:Types.ObjectId | IUser;
 
@@ -27,7 +27,6 @@ export interface IProduct {
   freezedAt?:Date;
   restoredAt?:Date;
 
-  assetFolderId:string;
   variants?: Array<{
     sku?: string;
     attributes?: Record<string, string>;

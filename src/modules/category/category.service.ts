@@ -21,38 +21,18 @@ export class CategoryService {
     if(checkCategory){
       throw new ConflictException(checkCategory.freezedAt ? 'Duplicated with archived category' : 'Duplicated category name');
     }
-    const brandsRaw = createCategoryDto.brands || [];
-    const brandIdStrings: string[] = [
-      ...new Set(
-        (brandsRaw as any[])
-          .map((b) => (typeof b === 'object' && b?._id ? String(b._id) : String(b)))
-          .map((s) => s.trim())
-      ),
-    ];
-    // Validate format before converting; this avoids throwing on bad input
-    for (const s of brandIdStrings) {
-      if (!/^[a-fA-F0-9]{24}$/.test(s) || !Types.ObjectId.isValid(s)) {
-        throw new BadRequestException('invalid brandIds format');
-      }
-    }
-    const brandObjectIds: Types.ObjectId[] = brandIdStrings.map((s) => new Types.ObjectId(s));
-    if (brandObjectIds.length && (await this.brandRepository.find({ filter: { _id: { $in: brandObjectIds } } })).length !== brandObjectIds.length) {
-      throw new BadRequestException('some of mentioned brands are not found');
-    }
+   
 
-
-    let assetFolderId:string=randomUUID();
-    // Use the finalPath from multer configuration for local file upload
-    const image:string = file ? `${assetFolderId}/${file.finalPath}` : '';
+  
+    const image:string = file ? `/${file.finalPath}` : '';
     
     const category=await this.categoryRepository.create({
      data:
       {
         ...createCategoryDto,
         image,
-        assetFolderId,
         createdBy:user._id,
-        brands: brandObjectIds,
+      
       }
 
      
@@ -156,13 +136,9 @@ export class CategoryService {
       throw new NotFoundException('Category not found');
     }
 
-    const assetFolderId = (existing as any).assetFolderId || randomUUID();
-    const image = file ? `${assetFolderId}/${file.finalPath}` : ((existing as any).image || '');
+    const image = file ? `/${file.finalPath}` : ((existing as any).image || '');
 
     const updatePayload: any = { image, updatedBy: user._id };
-    if (!(existing as any).assetFolderId) {
-      updatePayload.assetFolderId = assetFolderId;
-    }
 
     const updatedCategory = await this.categoryRepository.findOneAndUpdate({
       filter: { _id: categoryId },

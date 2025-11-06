@@ -21,9 +21,10 @@ export const localFileUpload = ({ folder = "public" ,vaildation=[],fileSize=2}: 
         callback(null, fullPath);
       },
       filename(req: Request, file: IMulterFile, callback: Function) {
-        const fileName = `${randomUUID()}_${Date.now()}_${file.originalname}`;
-        file.finalPath=basePath + `/${fileName}`
-        callback(null, fileName);
+        const finalName = file.originalname;
+        file.finalPath = `${basePath}/${finalName}`
+        // IMPORTANT: filename must be just the basename; destination already points to the folder
+        callback(null, finalName);
       },
     }),
     fileFilter(req: Request, file: IMulterFile, callback: Function) {
@@ -33,8 +34,6 @@ export const localFileUpload = ({ folder = "public" ,vaildation=[],fileSize=2}: 
          }
          return callback(new BadRequestException('Invalid file type'))
     },
-    limits:{
-        fileSize:fileSize *1024*1024,
-    }
+   
   };
 };

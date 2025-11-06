@@ -6,6 +6,7 @@ import { IProduct } from "src/common/interfaces/product.interface";
 
 export class CreateProductDto implements Partial<IProduct> {
      @IsMongoId()
+    @IsOptional()
     brand: Types.ObjectId 
     @IsMongoId()
     category: Types.ObjectId 

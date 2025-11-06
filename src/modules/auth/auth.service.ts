@@ -94,7 +94,6 @@ async login(data: LoginBodyDto): Promise<{
       accessToken: string;
       refreshToken: string;
     };
-    user: IUser;
   };
 }> {
   const { email, password } = data;
@@ -120,7 +119,6 @@ async login(data: LoginBodyDto): Promise<{
     message: 'Login successful',
     data: {
       credentials,
-      user: user as unknown as IUser
     },
   };
 }
