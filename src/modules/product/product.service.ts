@@ -68,9 +68,8 @@ export class ProductService {
       const brand = createProductDto.brand
         ? await this.brandRepository.findOne({ filter: { _id: createProductDto.brand } })
         : null;
-      let assetFolderId:string=randomUUID();
       const filesArr = Array.isArray(file) ? file : (file ? [file] : []);
-      const images=filesArr.map(f=>`${assetFolderId}/${f.finalPath}`);
+      const images=filesArr.map(f=>`/${f.finalPath}`);
       // compute product level salePrice
       const computedSalePrice = (typeof originalPrice === 'number') ? (originalPrice - originalPrice*( (discountPercent ?? 0)/100)) : undefined;
       const normalizedVariants = this.normalizeVariants(variants as any[], originalPrice, discountPercent);

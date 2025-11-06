@@ -10,6 +10,7 @@ export interface ICategory {
     slug:string,
     description?:string,
     image:string,
+    hasSubcategories?: boolean,
  
     brands?:Types.ObjectId[] | IBrand[],
     createdBy:Types.ObjectId | IUser,

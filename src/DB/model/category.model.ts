@@ -26,6 +26,8 @@ export class Category implements ICategory {
     description:string
     @Prop({type:String,required:true})
     image:string
+    @Prop({type:Boolean, default:false})
+    hasSubcategories?: boolean
     @Prop({type:Types.ObjectId,required:true,ref:"User"})
     createdBy:Types.ObjectId | IUser
     @Prop({type:Types.ObjectId,ref:"User"})

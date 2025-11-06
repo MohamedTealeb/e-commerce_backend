@@ -1,6 +1,6 @@
 import { PartialType } from '@nestjs/mapped-types';
 
-import { IsMongoId, IsNotEmpty, IsNumber, IsOptional, IsPositive, IsString, Validate } from "class-validator";
+import { IsBoolean, IsMongoId, IsNotEmpty, IsNumber, IsOptional, IsPositive, IsString, Validate } from "class-validator";
 import { Types } from "mongoose";
 import { containField } from 'src/common/decoretors/update.decorator';
 import { Type } from 'class-transformer';
@@ -12,6 +12,9 @@ export class UpdateCategoryDto extends PartialType(CreateCategoryDto) {
     @Validate(MongoDBIds)
     @IsOptional()
     removeBrands:Types.ObjectId[] | IBrand[]
+    @IsBoolean()
+    @IsOptional()
+    hasSubcategories?: boolean
 }
 
 export class CategoryParamsDto {
