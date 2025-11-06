@@ -174,20 +174,13 @@ return category;
 
   async remove(categoryId: Types.ObjectId,user:UserDocument):Promise<string> {
     const category=await this.categoryRepository.findOneAndDelete({
-      filter:{_id:categoryId ,paranoId:false,freezedAt:{$exists:true}}
+      filter:{_id:categoryId ,}
    
     })
     if(!category){
       throw new BadRequestException('Failed to remove category');
     }
-    // cascade: delete brands linked to this category and products by category/brand
-    const brandIds: Types.ObjectId[] = Array.isArray((category as any).brands) ? (category as any).brands as Types.ObjectId[] : [];
-    if (brandIds.length){
-      await this.brandRepository.deleteMany({_id: { $in: brandIds } } as any);
-      await this.productRepository.deleteMany({ $or: [ { brand: { $in: brandIds } }, { category: categoryId } ] } as any);
-    } else {
-      await this.productRepository.deleteMany({ category: categoryId } as any);
-    }
+    await this.productRepository.deleteMany({ category: categoryId } as any);
     return "Done";
        
       }
