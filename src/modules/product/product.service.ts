@@ -1,6 +1,6 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { CreateProductDto } from './dto/create-product.dto';
-import { UpdateProductAttachmentDto, UpdateProductDto } from './dto/update-product.dto';
+import { UpdateProductDto } from './dto/update-product.dto';
 import { UserDocument } from 'src/DB/model/user.model';
 import { ProductRepository } from 'src/DB/repository/product.repository';
 import { CategoryRepository } from 'src/DB/repository/category.repository';
@@ -19,13 +19,27 @@ export class ProductService {
     private readonly categoryRepository: CategoryRepository,
     private readonly userRepository: UserRepository) {}
   private normalizeVariants(
-    variants: any[] | undefined,
+    variants: any[] | any | undefined,
     productOriginalPrice?: number,
     productDiscountPercent?: number,
   ) {
-    if (!Array.isArray(variants) || variants.length === 0) return [];
+    // Handle undefined or null
+    if (variants === undefined || variants === null) return [];
     
-    return variants.map((vRaw: any) => {
+    // If it's a single object (not array), convert it to array
+    let variantsArray: any[] = [];
+    if (Array.isArray(variants)) {
+      variantsArray = variants;
+    } else if (typeof variants === 'object' && variants !== null) {
+      // Single variant object - convert to array
+      variantsArray = [variants];
+    } else {
+      return [];
+    }
+    
+    if (variantsArray.length === 0) return [];
+    
+    return variantsArray.map((vRaw: any) => {
       if (!vRaw || typeof vRaw !== 'object') return null;
       
       const {
@@ -35,21 +49,32 @@ export class ProductService {
         salePrice,
         stock,
         attributes,
+        size,
+        color,
         ...rest
       } = vRaw || {};
       
-      // Handle attributes - convert to Map format for Mongoose
       let attrs: Record<string, string> = {};
+      
+      // Handle attributes object
       if (attributes) {
         if (typeof attributes === 'object' && !Array.isArray(attributes)) {
           attrs = { ...attributes };
         }
       }
       
-      // Merge any string properties from rest into attributes
+      // Add size and color directly if they exist as separate fields
+      if (size && typeof size === 'string') {
+        attrs.size = size;
+      }
+      if (color && typeof color === 'string') {
+        attrs.color = color;
+      }
+      
+      // Merge any string properties from rest into attributes (but exclude size and color as they're already handled)
       const stringProps = Object.fromEntries(
         Object.entries(rest)
-          .filter(([, val]) => typeof val === 'string') as [string, string][]
+          .filter(([key, val]) => typeof val === 'string' && key !== 'size' && key !== 'color') as [string, string][]
       );
       attrs = { ...attrs, ...stringProps };
       
@@ -95,10 +120,10 @@ export class ProductService {
       // compute product level salePrice
       const computedSalePrice = (typeof originalPrice === 'number') ? (originalPrice - originalPrice*( (discountPercent ?? 0)/100)) : undefined;
       
-      // Normalize variants - handle both array and string
-      let variantsToNormalize: any[] = [];
+      // Normalize variants - handle array, object, or string
+      let variantsToNormalize: any = undefined;
       if (variants !== undefined && variants !== null) {
-        if (Array.isArray(variants)) {
+        if (Array.isArray(variants) || (typeof variants === 'object' && variants !== null)) {
           variantsToNormalize = variants;
         } else {
           // Handle string case (from form-data)
@@ -106,10 +131,10 @@ export class ProductService {
           if (typeof variantsValue === 'string' && variantsValue.trim() !== '') {
             try {
               const parsed = JSON.parse(variantsValue);
-              variantsToNormalize = Array.isArray(parsed) ? parsed : [];
+              variantsToNormalize = parsed; // Can be array or object
             } catch (e) {
               console.error('Failed to parse variants JSON:', e);
-              variantsToNormalize = [];
+              variantsToNormalize = undefined;
             }
           }
         }
@@ -147,92 +172,64 @@ export class ProductService {
   }
 
   
-  async  update(productId: Types.ObjectId, updateProductDto: UpdateProductDto, user:UserDocument){
-    const product=await this.productRepository.findOne({filter:{_id:productId}});
-    if(!product){
-      throw new NotFoundException('Product not found');
-    }
-    if(updateProductDto.category){
-      const category=await this.categoryRepository.findOne({filter:{_id:updateProductDto.category}});
-      if(!category){
-        throw new NotFoundException('Category not found');
-      }
-      updateProductDto.category=category._id;
-    }
-    if(updateProductDto.brand){
-      const brand=await this.brandRepository.findOne({filter:{_id:updateProductDto.brand}});
-      if(!brand){
-        throw new NotFoundException('Brand not found');
-      }
-      updateProductDto.brand=brand._id;
-    }
-    let salePrice=product.salePrice
-    if(updateProductDto.originalPrice||updateProductDto.discountPercent) {
-      const mainPrice=updateProductDto.originalPrice??product.originalPrice;
-      const discountPercent=updateProductDto.discountPercent??product.discountPercent;
-      const finalPrice=mainPrice-(mainPrice*(discountPercent/100));
-      salePrice=finalPrice>0?finalPrice:1;
-    }
-    // Normalize variants if provided
-    let updatePayload: any = { ...updateProductDto };
-    if ((updateProductDto as any).variants) {
-      updatePayload.variants = this.normalizeVariants(
-        (updateProductDto as any).variants as any[],
-        updateProductDto.originalPrice ?? (product as any).originalPrice,
-        updateProductDto.discountPercent ?? (product as any).discountPercent,
-      );
-    }
-    const updatedProduct=await this.productRepository.findOneAndUpdate({
-      filter:{_id:productId},
-      update:{...updatePayload,salePrice,updatedBy:user._id},
-    });
-    if(!updatedProduct){
-      throw new BadRequestException('Failed to update product');
-    }
-    return updatedProduct;
-  }
-  async updateAttachment(
+  async update(
     productId: Types.ObjectId,
-    updateProductAttachmentDto: UpdateProductAttachmentDto,
+    updateProductDto: UpdateProductDto,
     user: UserDocument,
     files?: IMulterFile[],
   ) {
-    const product = await this.productRepository.findOne({
-      filter: { _id: productId },
-      options: { populate: [{ path: 'category' }] },
-    });
-  
+    const product = await this.productRepository.findOne({ filter: { _id: productId } });
     if (!product) {
       throw new NotFoundException('Product not found');
     }
-  
-    let images: string[] = Array.isArray(product.images) ? [...product.images] : [];
-    const removed = updateProductAttachmentDto?.removedAttachments ?? [];
-  
-    if (removed.length) {
-      const removedSet = new Set(removed);
-      images = images.filter((img) => !removedSet.has(img));
+    const updateDto = updateProductDto as any;
+    if (updateDto.category) {
+      const category = await this.categoryRepository.findOne({ filter: { _id: updateDto.category } });
+      if (!category) {
+        throw new NotFoundException('Category not found');
+      }
+      updateDto.category = category._id;
     }
-  
-    if (files?.length) {
-      const newImages = files.map((file) => `/${file.finalPath}`);
-      images = images.concat(newImages);
+    let salePrice = product.salePrice;
+    if (updateDto.originalPrice || updateDto.discountPercent) {
+      const mainPrice = updateDto.originalPrice ?? product.originalPrice;
+      const discountPercent = updateDto.discountPercent ?? product.discountPercent;
+      const finalPrice = mainPrice - (mainPrice * (discountPercent / 100));
+      salePrice = finalPrice > 0 ? finalPrice : 1;
     }
-  
+    // Normalize variants if provided - can be array or single object
+    let updatePayload: any = { ...updateDto };
+    if (updateDto.variants !== undefined) {
+      updatePayload.variants = this.normalizeVariants(
+        updateDto.variants,
+        updateDto.originalPrice ?? (product as any).originalPrice,
+        updateDto.discountPercent ?? (product as any).discountPercent,
+      );
+    }
+    // Handle images update if removedAttachments or files are provided
+    if (updateDto.removedAttachments !== undefined || files?.length) {
+      let images: string[] = Array.isArray(product.images) ? [...product.images] : [];
+      const removed = updateDto.removedAttachments ?? [];
+      if (removed.length) {
+        const removedSet = new Set(removed);
+        images = images.filter((img) => !removedSet.has(img));
+      }
+      if (files?.length) {
+        // Replace old images with new ones instead of adding
+        const newImages = files.map((file) => `/${file.finalPath}`);
+        images = newImages;
+      }
+      updatePayload.images = images;
+    }
+    // Remove removedAttachments from update payload as it's not a product field
+    delete updatePayload.removedAttachments;
     const updatedProduct = await this.productRepository.findOneAndUpdate({
       filter: { _id: productId },
-      update: {
-        $set: {
-          updatedBy: user._id,
-          images,
-        },
-      },
+      update: { ...updatePayload, salePrice, updatedBy: user._id },
     });
-  
     if (!updatedProduct) {
       throw new BadRequestException('Failed to update product');
     }
-  
     return updatedProduct;
   }
   

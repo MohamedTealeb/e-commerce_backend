@@ -13,7 +13,7 @@ export class CouponService {
     private readonly couponRepository:CouponRepository
 
   ){}
-  async create(createCouponDto: CreateCouponDto,user:UserDocument,file:Express.Multer.File):Promise<CouponDocument> {
+  async create(createCouponDto: CreateCouponDto,user:UserDocument,file?:Express.Multer.File):Promise<CouponDocument> {
     const checkCoupon=await this.couponRepository.findOne({filter:{name:createCouponDto.name,paranoId:false}});
     if(checkCoupon){
       throw new ConflictException ('Duplicated coupon name');
@@ -82,7 +82,7 @@ export class CouponService {
 
   async remove(couponId: Types.ObjectId, user:UserDocument):Promise<string> {
     const coupon=await this.couponRepository.findOneAndDelete({
-      filter:{_id:couponId,paranoId:false,freezedAt:{$exists:true}}
+      filter:{_id:couponId}
     });
     if(!coupon){
       throw new BadRequestException('Failed to remove coupon');

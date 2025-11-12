@@ -19,7 +19,7 @@ export class Coupon implements ICoupon {
     @Prop({type:String,minLength:2,maxLength:50})
     slug:string
    
-    @Prop({type:String,required:true})
+    @Prop({type:String,required:false})
     image:string
     @Prop({type:Types.ObjectId,required:true,ref:"User"})
     createdBy:Types.ObjectId | IUser

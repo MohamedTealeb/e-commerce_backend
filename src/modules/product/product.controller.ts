@@ -1,7 +1,7 @@
 import { Controller, Get, Post, Body, Patch, Param, Delete, UseInterceptors, UploadedFiles, UsePipes, ValidationPipe, ParseFilePipe, Query, Inject } from '@nestjs/common';
 import { ProductService } from './product.service';
 import { CreateProductDto } from './dto/create-product.dto';
-import { ProductParamsDto, UpdateProductAttachmentDto, UpdateProductDto } from './dto/update-product.dto';
+import { ProductParamsDto, UpdateProductDto } from './dto/update-product.dto';
 import { FilesInterceptor } from '@nestjs/platform-express';
 import { localFileUpload } from 'src/common/utils/multer/local.multer';
 import { FileValidation } from 'src/common/utils/multer/validation.multer';
@@ -18,6 +18,7 @@ import { ProductDocument } from 'src/DB/model/product.model';
 import { GetAllResponse } from 'src/common/entities/search.entity';
 import { RoleEnum } from 'src/common/enums/user.enum';
 import { CACHE_MANAGER ,Cache, CacheInterceptor, CacheTTL} from '@nestjs/cache-manager';
+import { AddFilesFlagInterceptor } from 'src/common/interceptors/add-files-flag.interceptor';
 
 @UsePipes(new ValidationPipe({whitelist:true ,forbidNonWhitelisted:true}))
 @Controller('product')
@@ -51,18 +52,11 @@ export class ProductController {
     const product=await this.productService.findOne(params.productId);
     return succesResponse<ProductResponse>({data:{product},message:"Product found successfully",status:200})
   }
+@UseInterceptors(FilesInterceptor('attachment', 10, localFileUpload({folder:'products',vaildation:FileValidation.image})), AddFilesFlagInterceptor)
 @Auth(endpoint.create)
   @Patch(':productId')
-  async update(@Param() params: ProductParamsDto, @Body() updateProductDto: UpdateProductDto, @User() user:UserDocument):Promise<IResponse<ProductResponse>> {
-    const product=await this.productService.update(params.productId, updateProductDto,user);
-    return succesResponse<ProductResponse>({data:{product},message:"Product updated successfully",status:200})
-  }
-  @UseInterceptors(FilesInterceptor('attachment', 10, localFileUpload({folder:'products',vaildation:FileValidation.image})))
-
-@Auth(endpoint.create)
-  @Patch(':productId/attachment')
-  async updateAttachment(@Param() params: ProductParamsDto, @Body() updateProductAttachmentDto: UpdateProductAttachmentDto, @User() user:UserDocument ,@UploadedFiles() files?:IMulterFile[]):Promise<IResponse<ProductResponse>> {
-    const product=await this.productService.updateAttachment(params.productId, updateProductAttachmentDto,user,files);
+  async update(@Param() params: ProductParamsDto, @Body() updateProductDto: UpdateProductDto, @User() user:UserDocument, @UploadedFiles() files?:IMulterFile[]):Promise<IResponse<ProductResponse>> {
+    const product=await this.productService.update(params.productId, updateProductDto,user,files);
     return succesResponse<ProductResponse>({data:{product},message:"Product updated successfully",status:200})
   }
 

@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Body, Patch, Param, Delete, UsePipes, ValidationPipe, UseInterceptors, UploadedFile, ParseFilePipe, Query } from '@nestjs/common';
+import { Controller, Get, Post, Body, Patch, Param, Delete, UsePipes, ValidationPipe, UseInterceptors, UploadedFile, Query } from '@nestjs/common';
 import { CouponService } from './coupon.service';
 import { CreateCouponDto } from './dto/create-coupon.dto';
 import { UpdateCouponDto, CouponParamsDto } from './dto/update-coupon.dto';
@@ -23,7 +23,7 @@ export class CouponController {
   @UseInterceptors(FileInterceptor('attachment',localFileUpload({folder:'coupons',vaildation:FileValidation.image})))
   @Auth(endpoint.create)
   @Post()
- async create(@Body() createCouponDto: CreateCouponDto ,@User() user:UserDocument,@UploadedFile(ParseFilePipe) file:Express.Multer.File) {
+ async create(@Body() createCouponDto: CreateCouponDto ,@User() user:UserDocument,@UploadedFile() file?:Express.Multer.File) {
    const coupon=await this.couponService.create(createCouponDto,user,file);
     return succesResponse <ICoupon>({
       data:coupon,

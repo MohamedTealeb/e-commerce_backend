@@ -1,5 +1,5 @@
 import { Type } from "class-transformer";
-import { IsDateString, IsEnum, IsNotEmpty, IsNumber, IsPositive, IsString } from "class-validator";
+import { IsDateString, IsEnum, IsNotEmpty, IsNumber, IsOptional, IsPositive, IsString } from "class-validator";
 import { CouponType } from "src/common/enums/coupon.enum";
 import { ICoupon } from "src/common/interfaces/coupon.interface";
 
@@ -22,6 +22,10 @@ type: CouponType
 @IsString()
 @IsNotEmpty()
 name: string 
+
+@IsString()
+@IsOptional()
+image: string 
 
 
 
