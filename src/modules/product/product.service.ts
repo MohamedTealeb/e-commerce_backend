@@ -145,7 +145,7 @@ export class ProductService {
       // Prepare product data
       const productData: any = {
         name,description,originalPrice,discountPercent,stock,
-        ...(brand? { brand: brand._id } : {}),
+        
         category:category._id,
         salePrice: computedSalePrice && computedSalePrice>0 ? computedSalePrice : 1,
         images,
@@ -248,11 +248,53 @@ export class ProductService {
       },
       page,
       size,
+      options:{
+        populate:[
+          {
+            path:'category',
+            select:'name slug description image'
+          },
+          {
+            path:'brand',
+            select:'name slug'
+          },
+          {
+            path:'createdBy',
+            select:'firstName lastName email'
+          },
+          {
+            path:'updatedBy',
+            select:'firstName lastName email'
+          }
+        ]
+      }
     })
     return result;
   }
  async findOne(productId: Types.ObjectId,archive:boolean=false) {
-    const product=await this.productRepository.findOne({filter:{_id:productId}});
+    const product=await this.productRepository.findOne({
+      filter:{_id:productId},
+      options:{
+        populate:[
+          {
+            path:'category',
+            select:'name slug'
+          },
+          {
+            path:'brand',
+            select:'name slug'
+          },
+          {
+            path:'createdBy',
+            select:'firstName lastName email'
+          },
+          {
+            path:'updatedBy',
+            select:'firstName lastName email'
+          }
+        ]
+      }
+    });
     if(!product){
       throw new NotFoundException('Product not found');
     }

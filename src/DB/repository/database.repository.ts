@@ -40,7 +40,9 @@ options.skip=Math.floor((pages-1)*options.limit)
 docsCount=await this.model.countDocuments(filter)
 pages=Math.ceil(docsCount/options.limit)
 }
-const result=await this.model.find(filter,select,options)
+let query = this.model.find(filter,select,options)
+if (options?.populate) query = query.populate(options.populate as any)
+const result=await query
 return {
     docsCount: docsCount || 0,
     limit: options.limit || 0,

@@ -54,6 +54,9 @@ export class CategoryService {
       },
       page,
       size,
+      options:{
+        populate:'products'
+      }
     })
     return result;
   }
@@ -63,6 +66,9 @@ export class CategoryService {
         _id:brandId,
         ...(archive?{paranoId:false,freezedAt:{$exists:true}}:{}),
       },
+      options:{
+        populate:'products'
+      }
     })
     if(!result){
       throw new NotFoundException('Brand not found');

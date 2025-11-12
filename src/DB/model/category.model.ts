@@ -14,7 +14,9 @@ import { Product } from "./product.model";
 @Schema({
     timestamps:true,
     strictQuery:true,
-    strict:true
+    strict:true,
+    toObject:{virtuals:true},
+    toJSON:{virtuals:true}
 })
 export class Category implements ICategory {
 
