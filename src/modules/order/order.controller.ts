@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Body, Patch, Param, Delete, UsePipes, ValidationPipe, Req } from '@nestjs/common';
+import { Controller, Get, Post, Body, Patch, Param, Delete, UsePipes, ValidationPipe, Req, Query } from '@nestjs/common';
 import { OrderService } from './order.service';
 import { CreateOrderDto, OrderParamDto } from './dto/create-order.dto';
 import { UpdateOrderDto } from './dto/update-order.dto';
@@ -12,6 +12,8 @@ import { OrderResponse } from './entities/order.entity';
 import { IResponse } from 'src/common/interfaces/response.interfae';
 import Stripe from 'stripe';
 import  type { Request as ExpressRequest } from 'express';
+import { GetAllResponse } from 'src/common/entities/search.entity';
+import { SearchDto } from 'src/common/dtos/search.dto';
 
 @UsePipes(new ValidationPipe({whitelist:true ,forbidNonWhitelisted:true}))
 @Controller('order')
@@ -51,13 +53,21 @@ async webhook(@Req() req: Request) {
 }
 
   @Get()
-  findAll() {
-    return this.orderService.findAll();
+  async findAll(@Query() query: SearchDto):Promise<IResponse<GetAllResponse<OrderResponse>>> {
+    const result = await this.orderService.findAll(query);
+    return succesResponse<GetAllResponse<OrderResponse>>({data:{result:{
+      docsCount:result.docsCount || 0,
+      limit:result.limit || 5,
+      pages:result.pages || 1,
+      currentPage:result.currentPage || 1,
+      result:result.result.map((order:any)=>({order})),
+    }},message:"Orders found successfully",status:200})
   }
 
-  @Get(':id')
-  findOne(@Param('id') id: string) {
-    return this.orderService.findOne(+id);
+  @Get(':orderId')
+  async findOne(@Param() params: OrderParamDto):Promise<IResponse<OrderResponse>> {
+    const order = await this.orderService.findOne(params.orderId);
+    return succesResponse<OrderResponse>({data:{order},message:"Order found successfully",status:200})
   }
 
   @Patch('update/:id')

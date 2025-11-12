@@ -1,4 +1,4 @@
-import { BadRequestException, Injectable } from '@nestjs/common';
+import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { CreateOrderDto } from './dto/create-order.dto';
 import { UpdateOrderDto } from './dto/update-order.dto';
 import { UserDocument } from 'src/DB/model/user.model';
@@ -12,6 +12,7 @@ import { CartService } from '../cart/cart.service';
 import { CouponRepository } from 'src/DB/repository/coupon.repository';
 import { CouponType } from 'src/common/enums/coupon.enum';
 import { Types } from 'mongoose';
+import { SearchDto } from 'src/common/dtos/search.dto';
 import { OrderStatus, OrderStatusName, PaymentType } from 'src/common/enums/payment.enums';
 import { PaymentService } from 'src/common/utils/security/payment.service';
 import { ProductDocument } from 'src/DB/model/product.model';
@@ -268,12 +269,42 @@ await this.couponRepository.updateOne({
 return order;
   }
 
-  findAll() {
-    return `This action returns all order`;
+  async findAll(data: SearchDto) {
+    const {page=1,size=5,search}=data;
+    const result=await this.orderRepository.paginte({
+      filter:{
+        ...(search?{orderId:{$regex:search,$options:'i'}}:{}),
+      },
+      options:{
+        populate:[
+          {
+            path:"products.productId",
+            select:"name",
+          }
+        ]
+      },
+      page,
+      size,
+    });
+    return result;
   }
 
-  findOne(id: number) {
-    return `This action returns a #${id} order`;
+  async findOne(orderId: Types.ObjectId) {
+    const order=await this.orderRepository.findOne({
+      filter:{_id:orderId},
+      options:{
+        populate:[
+          {
+            path:"products.productId",
+            select:"name",
+          }
+        ]
+      }
+    });
+    if(!order){
+      throw new NotFoundException('Order not found');
+    }
+    return order;
   }
 
   update(id: number, updateOrderDto: UpdateOrderDto) {
