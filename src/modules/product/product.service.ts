@@ -23,8 +23,11 @@ export class ProductService {
     productOriginalPrice?: number,
     productDiscountPercent?: number,
   ) {
-    if (!Array.isArray(variants)) return [] as any[];
+    if (!Array.isArray(variants) || variants.length === 0) return [];
+    
     return variants.map((vRaw: any) => {
+      if (!vRaw || typeof vRaw !== 'object') return null;
+      
       const {
         sku,
         originalPrice,
@@ -34,13 +37,22 @@ export class ProductService {
         attributes,
         ...rest
       } = vRaw || {};
-      const attrs: Record<string, string> = {
-        ...(attributes || {}),
-        ...Object.fromEntries(
-          Object.entries(rest)
-            .filter(([, val]) => typeof val === 'string') as [string, string][]
-        ),
-      };
+      
+      // Handle attributes - convert to Map format for Mongoose
+      let attrs: Record<string, string> = {};
+      if (attributes) {
+        if (typeof attributes === 'object' && !Array.isArray(attributes)) {
+          attrs = { ...attributes };
+        }
+      }
+      
+      // Merge any string properties from rest into attributes
+      const stringProps = Object.fromEntries(
+        Object.entries(rest)
+          .filter(([, val]) => typeof val === 'string') as [string, string][]
+      );
+      attrs = { ...attrs, ...stringProps };
+      
       const op = typeof originalPrice === 'number' ? originalPrice : (typeof productOriginalPrice === 'number' ? productOriginalPrice : undefined);
       const dp = typeof discountPercent === 'number' ? discountPercent : (typeof productDiscountPercent === 'number' ? productDiscountPercent : 0);
       let sp: number | undefined = typeof salePrice === 'number' ? salePrice : undefined;
@@ -48,15 +60,25 @@ export class ProductService {
         const computed = op - (op * ((dp || 0) / 100));
         sp = typeof sp === 'number' ? sp : (computed > 0 ? computed : 1);
       }
-      return {
-        sku,
-        attributes: attrs,
-        originalPrice: op,
-        discountPercent: dp,
-        salePrice: sp,
-        stock: typeof stock === 'number' ? stock : 0,
+      
+      const variantStock = typeof stock === 'number' ? stock : 0;
+      
+      // Build variant object - Mongoose will automatically convert attributes object to Map
+      const variant: any = {
+        stock: variantStock,
       };
-    });
+      
+      if (sku) variant.sku = sku;
+      if (Object.keys(attrs).length > 0) {
+        // Pass as plain object - Mongoose schema will convert to Map automatically
+        variant.attributes = attrs;
+      }
+      if (op !== undefined) variant.originalPrice = op;
+      if (dp !== undefined && dp !== null) variant.discountPercent = dp;
+      if (sp !== undefined) variant.salePrice = sp;
+      
+      return variant;
+    }).filter((v) => v !== null && v !== undefined);
   }
 
  async create(createProductDto: CreateProductDto ,file:IMulterFile[],user:UserDocument):Promise<ProductDocument> {
@@ -72,21 +94,55 @@ export class ProductService {
       const images=filesArr.map(f=>`/${f.finalPath}`);
       // compute product level salePrice
       const computedSalePrice = (typeof originalPrice === 'number') ? (originalPrice - originalPrice*( (discountPercent ?? 0)/100)) : undefined;
-      const normalizedVariants = this.normalizeVariants(variants as any[], originalPrice, discountPercent);
-      const product=await this.productRepository.create({
-        data:{
-          name,description,originalPrice,discountPercent,stock,
-          ...(brand? { brand: brand._id } : {}),
-          category:category._id,
-          salePrice: computedSalePrice && computedSalePrice>0 ? computedSalePrice : 1,
-          variants: normalizedVariants,
-          images,
-          createdBy:user._id,
+      
+      // Normalize variants - handle both array and string
+      let variantsToNormalize: any[] = [];
+      if (variants !== undefined && variants !== null) {
+        if (Array.isArray(variants)) {
+          variantsToNormalize = variants;
+        } else {
+          // Handle string case (from form-data)
+          const variantsValue = variants as any;
+          if (typeof variantsValue === 'string' && variantsValue.trim() !== '') {
+            try {
+              const parsed = JSON.parse(variantsValue);
+              variantsToNormalize = Array.isArray(parsed) ? parsed : [];
+            } catch (e) {
+              console.error('Failed to parse variants JSON:', e);
+              variantsToNormalize = [];
+            }
+          }
         }
+      }
+      
+      const normalizedVariants = this.normalizeVariants(variantsToNormalize, originalPrice, discountPercent);
+      
+      // Prepare product data
+      const productData: any = {
+        name,description,originalPrice,discountPercent,stock,
+        ...(brand? { brand: brand._id } : {}),
+        category:category._id,
+        salePrice: computedSalePrice && computedSalePrice>0 ? computedSalePrice : 1,
+        images,
+        createdBy:user._id,
+      };
+      
+      // Always include variants array - Mongoose schema has default:[] so it will be saved
+      productData.variants = normalizedVariants;
+      
+      const product=await this.productRepository.create({
+        data: productData
       });
       if(!product){
         throw new BadRequestException('Failed to create product');
       }
+      
+      // Verify variants were saved
+      const savedProduct = await this.productRepository.findOne({ filter: { _id: product._id } });
+      if (savedProduct && savedProduct.variants) {
+        console.log('Variants saved successfully:', JSON.stringify(savedProduct.variants, null, 2));
+      }
+      
       return product;
   }
 
