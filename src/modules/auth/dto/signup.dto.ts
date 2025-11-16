@@ -11,8 +11,13 @@ export class LoginBodyDto {
 export class SignupBodyDto  extends LoginBodyDto{
     @IsString()
     @IsNotEmpty()
-    @Length(2,26,{message:'username must be between 2 and 26 characters'})
-    username: string;
+    @Length(2,26,{message:'firstName must be between 2 and 26 characters'})
+    firstName: string;
+  
+    @IsString()
+    @IsNotEmpty()
+    @Length(2,26,{message:'lastName must be between 2 and 26 characters'})
+    lastName: string;
   
     // @Validate(MatchBetween)
     @ValidateIf((data:SignupBodyDto)=>{

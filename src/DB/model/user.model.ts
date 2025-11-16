@@ -22,12 +22,22 @@ export class User implements IUser {
     lastName: string;
     @Virtual({
         get:function(this:User){
-            
-            return `${this.firstName} ${this.lastName}`
+            const firstName = this.firstName || '';
+            const lastName = this.lastName || '';
+            if (!firstName && !lastName) {
+                return '';
+            }
+            return `${firstName} ${lastName}`.trim()
         },
         set:function(value:string){
-            const[firstName,lastName]=value.split(' ')||[]
-            this.set({firstName,lastName})
+            if (!value || typeof value !== 'string') {
+                this.set({firstName: '', lastName: ''});
+                return;
+            }
+            const parts = value.trim().split(/\s+/);
+            const firstName = parts[0] || '';
+            const lastName = parts.slice(1).join(' ') || '';
+            this.set({firstName, lastName});
         }
     })
     username:string

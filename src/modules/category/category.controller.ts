@@ -13,6 +13,7 @@ import { endpoint } from './category.authorization.module';
 import { localFileUpload } from 'src/common/utils/multer/local.multer';
 import type { IMulterFile } from 'src/common/interfaces/multer.interface';
 import { CategoryService } from './category.service';
+import { AddFilesFlagInterceptor } from 'src/common/interceptors/add-files-flag.interceptor';
 
 import { CreateCategoryDto } from './dto/create-category.dto';
 import { SearchDto } from 'src/common/dtos/search.dto';
@@ -75,17 +76,11 @@ async findAllArchive(
     return this.categoryService.findOne(params.categoryId,true);
   }
 
+  @UseInterceptors(FileInterceptor('attachment',localFileUpload({folder:'categories',vaildation:FileValidation.image})), AddFilesFlagInterceptor)
   @Auth(endpoint.create)
   @Patch(':categoryId')
- async update(@Param() params: CategoryParamsDto, @Body() updateCategoryDto: UpdateCategoryDto, @User() user:UserDocument):Promise<IResponse<CategoryResponse>> {
-    const category=await this.categoryService.update(params.categoryId, updateCategoryDto,user);
-    return succesResponse<CategoryResponse>({data:{category},message:"Category updated successfully",status:200})
-  }
-  @UseInterceptors(FileInterceptor('attachment',localFileUpload({folder:'brands',vaildation:FileValidation.image})))
-  @Auth(endpoint.create)
-  @Patch(':categoryId/attachment')
- async updateAttachment(@Param() params: CategoryParamsDto, @UploadedFile(ParseFilePipe) file:IMulterFile, @User() user:UserDocument):Promise<IResponse<CategoryResponse>> {
-    const category=await this.categoryService.updateAttachment(params.categoryId, file,user);
+ async update(@Param() params: CategoryParamsDto, @Body() updateCategoryDto: UpdateCategoryDto, @User() user:UserDocument, @UploadedFile() file?:IMulterFile):Promise<IResponse<CategoryResponse>> {
+    const category=await this.categoryService.update(params.categoryId, updateCategoryDto,user, file);
     return succesResponse<CategoryResponse>({data:{category},message:"Category updated successfully",status:200})
   }
 

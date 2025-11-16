@@ -15,6 +15,9 @@ export class UpdateCategoryDto extends PartialType(CreateCategoryDto) {
     @IsBoolean()
     @IsOptional()
     hasSubcategories?: boolean
+    @IsBoolean()
+    @IsOptional()
+    __hasFiles?: boolean
 }
 
 export class CategoryParamsDto {

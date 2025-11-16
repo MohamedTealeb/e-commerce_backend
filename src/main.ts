@@ -2,6 +2,7 @@ import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module';
 import { setDefaultLanguage } from './common/middleware/setDefualtLanguage';
 import { LoggingInterceptor } from './common/interceptors/watchReauest.interceptor';
+import { HttpExceptionFilter } from './common/filters/http-exception.filter';
 import * as express from 'express';
 
 async function bootstrap() {
@@ -11,6 +12,7 @@ async function bootstrap() {
   app.use("/order/webhook",express.raw({type:'application/json'}))
   app.use(setDefaultLanguage)
   app.useGlobalInterceptors(new LoggingInterceptor)
+  app.useGlobalFilters(new HttpExceptionFilter())
   await app.listen(port,()=>{
     console.log(`Application is running on: ${port}`);
   });

@@ -16,7 +16,7 @@ import { TokenSecurity } from "src/common/utils/security/token.security";
 
 @Module({
   imports: [
-    ConfigModule, // ✅ تأكد من أن ConfigService متاح
+    ConfigModule, 
     UserModel,
     TokenModel,
     OtpModel,

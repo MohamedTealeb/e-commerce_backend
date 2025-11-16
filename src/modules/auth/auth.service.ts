@@ -47,7 +47,7 @@ export class AuthenticationService {
 
 
 async signup(data:SignupBodyDto):Promise<{message: string}>{
- const {email ,password ,username} =data
+ const {email ,password ,firstName, lastName} =data
  const checkUserExist=await this.userRepository.findOne({filter:{email}})
  if(checkUserExist){
     throw new ConflictException('user already exists')
@@ -59,7 +59,8 @@ async signup(data:SignupBodyDto):Promise<{message: string}>{
  
  const user=await this.userRepository.create({
     data:{
-      username,
+      firstName,
+      lastName,
       email,
       password
     },
@@ -221,7 +222,19 @@ async login(data: LoginBodyDto): Promise<{
     }
 
     try {
-      // Delete existing reset password OTP for this user
+      const twoMinutesAgo = new Date(Date.now() - 2 * 60 * 1000);
+      const recentOtp = await this.otpRepository.findOne({
+        filter: {
+          createdBy: user._id,
+          type: otpEnum.ResetPassword,
+          createdAt: { $gte: twoMinutesAgo }
+        }
+      });
+
+      if (recentOtp) {
+        throw new ConflictException('Please wait 2 minutes before requesting another password reset code');
+      }
+
       await this.otpRepository.deleteMany({
         createdBy: user._id,
         type: otpEnum.ResetPassword
@@ -229,8 +242,7 @@ async login(data: LoginBodyDto): Promise<{
 
       const otp = generateNumberOtp();
 
-      // Create new OTP using the repository
-      // Email will be sent automatically by the OTP model's post-save hook
+    
       await this.otpRepository.create({
         data: {
           code: otp.toString(),
@@ -242,6 +254,9 @@ async login(data: LoginBodyDto): Promise<{
 
       return { message: "Password reset code sent to your email" };
     } catch (error) {
+      if (error instanceof ConflictException) {
+        throw error;
+      }
       console.error('Error in forgetPassword:', error);
       throw new ConflictException('Failed to process password reset request');
     }
@@ -364,13 +379,17 @@ async login(data: LoginBodyDto): Promise<{
       throw new ConflictException('User is not a Google account');
     }
     
+    const firstName = user.firstName || '';
+    const lastName = user.lastName || '';
+    const username = `${firstName} ${lastName}`.trim() || '';
+    
     const accessToken = await this.tokenSecurity.generateToken({
       payload: {
         sub: user._id.toString(),
         user: {
           id: user.id,
           email: user.email,
-          username: user.firstName + ' ' + user.lastName || '',
+          username: username,
           role: user.role
         }
       }
@@ -382,7 +401,7 @@ async login(data: LoginBodyDto): Promise<{
         user: {
           id: user.id,
           email: user.email,
-          username: user.firstName + ' ' + user.lastName || '',
+          username: username,
           role: user.role
         }
       },

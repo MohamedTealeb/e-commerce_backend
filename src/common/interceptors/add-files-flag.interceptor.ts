@@ -10,7 +10,10 @@ export class AddFilesFlagInterceptor implements NestInterceptor {
     const hasFiles = (request.files && request.files.length > 0) || request.file;
     
     // Add flag to body if files are present
-    if (hasFiles && request.body && typeof request.body === 'object') {
+    if (hasFiles) {
+      if (!request.body || typeof request.body !== 'object') {
+        request.body = {};
+      }
       request.body.__hasFiles = true;
     }
     

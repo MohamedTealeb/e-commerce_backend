@@ -78,63 +78,7 @@ export class CategoryService {
 
 
 
-  async update(categoryId: Types.ObjectId, updateCategoryDto: UpdateCategoryDto,user:UserDocument):Promise<CategoryDocument|Lean<CategoryDocument>> {
-
-    if(updateCategoryDto.name&& (await this.categoryRepository.findOne({filter:{name:updateCategoryDto.name}}))){
-      throw new ConflictException('Category already exists');
-    }
-    const updateBrandsRaw = updateCategoryDto.brands || [];
-    const brands: Types.ObjectId[] = [
-      ...new Set(
-        updateBrandsRaw.map((brand) =>
-          Types.ObjectId.createFromHexString(brand as unknown as string)
-        )
-      ),
-    ];
-    if (brands && (await this.brandRepository.find({ filter: { _id: { $in: brands } } })).length !== brands.length) {
-      throw new BadRequestException('some of mentioned brands are not found');
-    }
-    const removeBrandsRaw = updateCategoryDto.removeBrands || [];
-    const removeBrands: Types.ObjectId[] = [
-      ...new Set(
-        removeBrandsRaw.map((brand) =>
-          Types.ObjectId.createFromHexString(brand as unknown as string)
-        )
-      ),
-    ];
-    const { removeBrands: _omitRemoveBrands, ...restUpdate } = updateCategoryDto as any;
-    const category=await this.categoryRepository.findOneAndUpdate({
-      filter:{_id:categoryId},
-      update: [
-        {
-          $set: {
-            ...restUpdate,
-            updatedBy: user._id,
-            brands: {
-              $setUnion: [
-                {
-                  $setDifference: [
-                    "$brands",
-                    (removeBrands || []).map((brand) => {
-                      return Types.ObjectId.createFromHexString(brand as unknown as string)
-                    })
-                  ]
-                },
-                (brands || []).map((brand) => {
-                  return Types.ObjectId.createFromHexString(brand as unknown as string)
-                })
-              ]
-            }
-          }
-        }
-      ],
-    })
-    if(!category){
-      throw new BadRequestException('Failed to update category');
-    }
-    return category;
-  }
-  async updateAttachment(categoryId: Types.ObjectId, file:IMulterFile,user:UserDocument):Promise<CategoryDocument|Lean<CategoryDocument>> {
+  async update(categoryId: Types.ObjectId, updateCategoryDto: UpdateCategoryDto,user:UserDocument, file?:IMulterFile):Promise<CategoryDocument|Lean<CategoryDocument>> {
     const existing = await this.categoryRepository.findOne({
       filter: { _id: categoryId },
     });
@@ -142,18 +86,76 @@ export class CategoryService {
       throw new NotFoundException('Category not found');
     }
 
-    const image = file ? `/${file.finalPath}` : ((existing as any).image || '');
+    const dto = updateCategoryDto || {} as any;
 
-    const updatePayload: any = { image, updatedBy: user._id };
-
-    const updatedCategory = await this.categoryRepository.findOneAndUpdate({
-      filter: { _id: categoryId },
-      update: updatePayload,
-    })
-    if(!updatedCategory){
-      throw new BadRequestException('Failed to update category');
+    if(dto?.name && (await this.categoryRepository.findOne({filter:{name:dto.name}}))){
+      throw new ConflictException('Category already exists');
     }
-    return updatedCategory;
+    
+    const { removeBrands: _omitRemoveBrands, brands, __hasFiles: _omitHasFiles, ...restUpdate } = dto;
+    
+    let brandsUpdate: any = {};
+    if (dto?.brands || dto?.removeBrands) {
+      const updateBrandsRaw = dto.brands || [];
+      const brandsToAdd: Types.ObjectId[] = [
+        ...new Set(
+          updateBrandsRaw.map((brand) =>
+            Types.ObjectId.createFromHexString(brand as unknown as string)
+          )
+        ),
+      ];
+      if (brandsToAdd.length > 0 && (await this.brandRepository.find({ filter: { _id: { $in: brandsToAdd } } })).length !== brandsToAdd.length) {
+        throw new BadRequestException('some of mentioned brands are not found');
+      }
+      const removeBrandsRaw = dto.removeBrands || [];
+      const brandsToRemove: Types.ObjectId[] = [
+        ...new Set(
+          removeBrandsRaw.map((brand) =>
+            Types.ObjectId.createFromHexString(brand as unknown as string)
+          )
+        ),
+      ];
+      
+      brandsUpdate = {
+        brands: {
+          $setUnion: [
+            {
+              $setDifference: [
+                "$brands",
+                brandsToRemove.map((brand) => Types.ObjectId.createFromHexString(brand as unknown as string))
+              ]
+            },
+            brandsToAdd.map((brand) => Types.ObjectId.createFromHexString(brand as unknown as string))
+          ]
+        }
+      };
+    }
+    
+    const updatePayload: any = {
+      updatedBy: user._id,
+      ...brandsUpdate
+    };
+    
+    if (restUpdate && Object.keys(restUpdate).length > 0) {
+      Object.assign(updatePayload, restUpdate);
+    }
+    
+    if (file) {
+      updatePayload.image = `/${file.finalPath}`;
+    }
+    
+    const category=await this.categoryRepository.findOneAndUpdate({
+      filter:{_id:categoryId},
+      update: [
+        {
+          $set: updatePayload
+        }
+      ],
+    })
+    if(!category){
+      throw new BadRequestException('category not found');
+    }
+    return category;
   }
   async freeze(categoryId: Types.ObjectId,user:UserDocument):Promise<string> {
 const category=await this.categoryRepository.findOneAndUpdate({
@@ -161,7 +163,7 @@ const category=await this.categoryRepository.findOneAndUpdate({
   update:{freezedAt:new Date(),$unset:{restoredAt:true},updatedBy:user._id},options:{new:false},
 })
 if(!category){
-  throw new BadRequestException('Failed to freeze category');
+  throw new BadRequestException('category not found');
 }
 return "Done";
    
@@ -172,7 +174,7 @@ const category=await this.categoryRepository.findOneAndUpdate({
   update:{restoredAt:new Date(),$unset:{freezedAt:true},updatedBy:user._id},options:{new:false},
 })
 if(!category){
-  throw new BadRequestException('Failed to restore category');
+  throw new BadRequestException('category not found');
 }
 return category;
    
@@ -184,7 +186,7 @@ return category;
    
     })
     if(!category){
-      throw new BadRequestException('Failed to remove category');
+      throw new BadRequestException('category not found');
     }
     await this.productRepository.deleteMany({ category: categoryId } as any);
     return "Done";
