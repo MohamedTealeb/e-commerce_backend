@@ -22,7 +22,7 @@ export const localFileUpload = ({ folder = "public" ,vaildation=[],fileSize=2}: 
       },
       filename(req: Request, file: IMulterFile, callback: Function) {
         const finalName = file.originalname;
-        file.finalPath = `${basePath}/${finalName}`
+        file.finalPath = `${folder}/${finalName}`
         // IMPORTANT: filename must be just the basename; destination already points to the folder
         callback(null, finalName);
       },
