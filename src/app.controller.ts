@@ -13,7 +13,7 @@ export class AppController {
     return this.appService.getHello();
   }
 
-  @Get('static/:folder/:filename')
+  @Get('/:folder/:filename')
   getImage(
     @Param('folder') folder: string,
     @Param('filename') filename: string,
