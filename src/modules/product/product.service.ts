@@ -209,15 +209,18 @@ export class ProductService {
     // Handle images update if removedAttachments or files are provided
     if (updateDto.removedAttachments !== undefined || files?.length) {
       let images: string[] = Array.isArray(product.images) ? [...product.images] : [];
-      const removed = updateDto.removedAttachments ?? [];
-      if (removed.length) {
-        const removedSet = new Set(removed);
-        images = images.filter((img) => !removedSet.has(img));
-      }
+      
+      // If new files are provided, replace all old images with new ones
       if (files?.length) {
-        // Replace old images with new ones instead of adding
         const newImages = files.map((file) => `/${file.finalPath}`);
         images = newImages;
+      } else if (updateDto.removedAttachments !== undefined) {
+        // If only removedAttachments provided (no new files), remove specified images
+        const removed = updateDto.removedAttachments ?? [];
+        if (removed.length) {
+          const removedSet = new Set(removed);
+          images = images.filter((img) => !removedSet.has(img));
+        }
       }
       updatePayload.images = images;
     }
