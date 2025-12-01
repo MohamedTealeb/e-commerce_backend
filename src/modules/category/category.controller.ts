@@ -6,7 +6,7 @@ import type { UserDocument } from 'src/DB/model/user.model';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { FileValidation } from 'src/common/utils/multer/validation.multer';
 import { IResponse } from 'src/common/interfaces/response.interfae';
-import { CategoryResponse } from './entities/category.entity';
+import { CategoryResponse, CategoryWithProductsResponse } from './entities/category.entity';
 
 import { Auth } from 'src/common/decoretors/auth.decoretors';
 import { endpoint } from './category.authorization.module';
@@ -18,6 +18,7 @@ import { AddFilesFlagInterceptor } from 'src/common/interceptors/add-files-flag.
 import { CreateCategoryDto } from './dto/create-category.dto';
 import { SearchDto } from 'src/common/dtos/search.dto';
 import { GetAllResponse } from 'src/common/entities/search.entity';
+import { ProductResponse } from 'src/modules/product/entities/product.entity';
 
 
 @UsePipes(new ValidationPipe({whitelist:true ,forbidNonWhitelisted:true}))
@@ -65,9 +66,30 @@ async findAllArchive(
   return succesResponse({data:result})
 }
   @Get(':categoryId')
-  async findOne(@Param() params: CategoryParamsDto): Promise<IResponse<CategoryResponse>> {
-    const category = await this.categoryService.findOne(params.categoryId);
-    return succesResponse<CategoryResponse>({data:{category},message:"Category found successfully",status:200})
+  async findOne(
+    @Param() params: CategoryParamsDto,
+    @Query() query: SearchDto,
+  ): Promise<IResponse<CategoryWithProductsResponse>> {
+    const { category, products } = await this.categoryService.findOneWithProducts(params.categoryId, query);
+
+    const mappedProducts: GetAllResponse<ProductResponse> = {
+      result: {
+        docsCount: (products as any).docsCount || 0,
+        limit: (products as any).limit || 0,
+        pages: (products as any).pages || 0,
+        currentPage: (products as any).currentPage || 1,
+        result: ((products as any).result || []).map((product: any) => ({ product })),
+      },
+    };
+
+    return succesResponse<CategoryWithProductsResponse>({
+      data: {
+        category,
+        products: mappedProducts,
+      },
+      message: 'Category found successfully',
+      status: 200,
+    });
   }
 
   @Auth(endpoint.create)

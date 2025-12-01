@@ -197,7 +197,6 @@ export class ProductService {
       const finalPrice = mainPrice - (mainPrice * (discountPercent / 100));
       salePrice = finalPrice > 0 ? finalPrice : 1;
     }
-    // Normalize variants if provided - can be array or single object
     let updatePayload: any = { ...updateDto };
     if (updateDto.variants !== undefined) {
       updatePayload.variants = this.normalizeVariants(
@@ -209,18 +208,15 @@ export class ProductService {
     // Handle images update if removedAttachments or files are provided
     if (updateDto.removedAttachments !== undefined || files?.length) {
       let images: string[] = Array.isArray(product.images) ? [...product.images] : [];
-      
-      // If new files are provided, replace all old images with new ones
+      const removed = updateDto.removedAttachments ?? [];
+      if (removed.length) {
+        const removedSet = new Set(removed);
+        images = images.filter((img) => !removedSet.has(img));
+      }
       if (files?.length) {
+        // Replace old images with new ones instead of adding
         const newImages = files.map((file) => `/${file.finalPath}`);
         images = newImages;
-      } else if (updateDto.removedAttachments !== undefined) {
-        // If only removedAttachments provided (no new files), remove specified images
-        const removed = updateDto.removedAttachments ?? [];
-        if (removed.length) {
-          const removedSet = new Set(removed);
-          images = images.filter((img) => !removedSet.has(img));
-        }
       }
       updatePayload.images = images;
     }

@@ -14,66 +14,121 @@ import { SearchDto } from 'src/common/dtos/search.dto';
 
 @Injectable()
 export class CategoryService {
-  constructor(private readonly categoryRepository: CategoryRepository ,private readonly brandRepository: BrandRepository, private readonly productRepository: ProductRepository){}
-  async create(createCategoryDto: CreateCategoryDto,file:IMulterFile,user:UserDocument):Promise<CategoryDocument> {
-    const{name}=createCategoryDto;
-    const checkCategory=await this.categoryRepository.findOne({filter:{name,paranoId:false}});
-    if(checkCategory){
-      throw new ConflictException(checkCategory.freezedAt ? 'Duplicated with archived category' : 'Duplicated category name');
-    }
-   
+  constructor(
+    private readonly categoryRepository: CategoryRepository,
+    private readonly brandRepository: BrandRepository,
+    private readonly productRepository: ProductRepository,
+  ) {}
 
-  
-    const image:string = file ? `/${file.finalPath}` : '';
-    
-    const category=await this.categoryRepository.create({
-     data:
-      {
+  async create(createCategoryDto: CreateCategoryDto, file: IMulterFile, user: UserDocument): Promise<CategoryDocument> {
+    const { name } = createCategoryDto;
+    const checkCategory = await this.categoryRepository.findOne({ filter: { name, paranoId: false } });
+    if (checkCategory) {
+      throw new ConflictException(
+        checkCategory.freezedAt ? 'Duplicated with archived category' : 'Duplicated category name',
+      );
+    }
+
+    const image: string = file ? `/${file.finalPath}` : '';
+
+    const category = await this.categoryRepository.create({
+      data: {
         ...createCategoryDto,
         image,
-        createdBy:user._id,
-      
-      }
-
-     
+        createdBy: user._id,
+      },
     });
     return category;
   }
 
- async findAll(data:SearchDto,archive:boolean=false) {
-  const{page,size,search}=data;
-    const result=await this.categoryRepository.paginte({
-      filter:{
-        ...(search ?{$or:[
-          {name:{$regex:search,$options:'i'}},
-          {slug:{$regex:search,$options:'i'}},
-          {slogan:{$regex:search,$options:'i'}},
-        ]}:{}),
-        ...(archive?{paranoId:false,freezedAt:{$exists:true}}:{}),
-      
+  async findAll(data: SearchDto, archive: boolean = false) {
+    const { page, size, search } = data;
+    const result = await this.categoryRepository.paginte({
+      filter: {
+        ...(search
+          ? {
+              $or: [
+                { name: { $regex: search, $options: 'i' } },
+                { slug: { $regex: search, $options: 'i' } },
+                { slogan: { $regex: search, $options: 'i' } },
+              ],
+            }
+          : {}),
+        ...(archive ? { paranoId: false, freezedAt: { $exists: true } } : {}),
       },
       page,
       size,
-      options:{
-        populate:'products'
-      }
-    })
+      options: {
+        populate: 'products',
+      },
+    });
     return result;
   }
- async findOne(brandId: Types.ObjectId,archive:boolean=false) {
-    const result=await this.categoryRepository.findOne({
-      filter:{
-        _id:brandId,
-        ...(archive?{paranoId:false,freezedAt:{$exists:true}}:{}),
+
+  async findOne(categoryId: Types.ObjectId, archive: boolean = false) {
+    const result = await this.categoryRepository.findOne({
+      filter: {
+        _id: categoryId,
+        ...(archive ? { paranoId: false, freezedAt: { $exists: true } } : {}),
       },
-      options:{
-        populate:'products'
-      }
-    })
-    if(!result){
-      throw new NotFoundException('Brand not found');
+      options: {
+        populate: 'products',
+      },
+    });
+    if (!result) {
+      throw new NotFoundException('Category not found');
     }
     return result;
+  }
+
+  /**
+   * Find one category and return its products with pagination
+   */
+  async findOneWithProducts(
+    categoryId: Types.ObjectId,
+    data: SearchDto,
+    archive: boolean = false,
+  ) {
+    const category = await this.categoryRepository.findOne({
+      filter: {
+        _id: categoryId,
+        ...(archive ? { paranoId: false, freezedAt: { $exists: true } } : {}),
+      },
+    });
+
+    if (!category) {
+      throw new NotFoundException('Category not found');
+    }
+
+    const { page, size } = data || ({} as SearchDto);
+    const pageArg: number | 'all' = typeof page === 'number' ? page : 'all';
+
+    const products = await this.productRepository.paginte({
+      filter: {
+        // هات كل المنتجات المرتبطة بالكاتيجوري دي فقط
+        category: category._id as any,
+      } as any,
+      page: pageArg,
+      size,
+      options: {
+        populate: [
+          {
+            path: 'brand',
+            select: 'name slug',
+          },
+          {
+            path: 'createdBy',
+            select: 'firstName lastName email',
+          },
+          {
+            path: 'updatedBy',
+            select: 'firstName lastName email',
+          },
+        ],
+      } as any,
+    });
+
+    return { category, products };
   }
 
 
