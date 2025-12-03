@@ -96,6 +96,9 @@ async login(data: LoginBodyDto): Promise<{
       refreshToken: string;
     };
   };
+  user: {
+    role: string;
+  };
 }> {
   const { email, password } = data;
   const user = await this.userRepository.findOne({ filter: { email } });
@@ -121,6 +124,10 @@ async login(data: LoginBodyDto): Promise<{
     data: {
       credentials,
     },
+    user: {
+  
+      role: user.role
+    }
   };
 }
 

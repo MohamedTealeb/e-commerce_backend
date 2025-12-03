@@ -30,12 +30,17 @@ export class AuthenticationController {
 
   @HttpCode(200)
   @Post("login")
-  async login(@Body() body: LoginBodyDto): Promise<IResponse<{ credentials: { accessToken: string; refreshToken: string } }>> {
+  async login(
+    @Body() body: LoginBodyDto
+  ): Promise<IResponse<{ credentials: { accessToken: string; refreshToken: string }; user: { role: string } }>> {
     const data = await this.authenticationService.login(body);
     return succesResponse({
-      data: { credentials: data.data.credentials },
+      data: {
+        credentials: data.data.credentials,
+        user: data.user,
+      },
       message: data.message,
-      status: 200
+      status: 200,
     });
   }
 

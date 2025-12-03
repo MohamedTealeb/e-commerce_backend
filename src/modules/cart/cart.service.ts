@@ -53,30 +53,16 @@ cart.products.push({
   return {cart,status:200};
   }
  async removeItem(removeItemCartDto: RemoveItemCartDto,user:UserDocument):Promise<CartDocument> {
- const cart=await this.cartRepository.findOne({filter:{createdBy:user._id}});
+ const cart=await this.cartRepository.findOneAndUpdate({
+  filter:{createdBy:user._id},
+  update:{
+  $pull:{products:{productId:{$in:removeItemCartDto.productId.map(product=>{return Types.ObjectId.createFromHexString(product as unknown as string)})}}}}
+ });
   if(!cart){
   throw new NotFoundException('cart not found');
+  
+  
   }
-
-  for(const item of removeItemCartDto.items){
-    const productInCart=cart.products.find(product=>{
-      return product.productId.toString()===item.productId.toString();
-    });
-    
-    if(!productInCart){
-      continue;
-    }
-
-    if(!item.quantity || item.quantity>=productInCart.quantity){
-      cart.products=cart.products.filter(product=>{
-        return product.productId.toString()!==item.productId.toString();
-      });
-    }else{
-      productInCart.quantity-=item.quantity;
-    }
-  }
-
-  await cart.save();
   return cart;
   }
  async removeCart(user:UserDocument):Promise<string> {
