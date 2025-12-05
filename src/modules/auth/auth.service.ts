@@ -97,7 +97,7 @@ async login(data: LoginBodyDto): Promise<{
     };
   };
   user: {
-    role: string;
+    role: RoleEnum;
   };
 }> {
   const { email, password } = data;
