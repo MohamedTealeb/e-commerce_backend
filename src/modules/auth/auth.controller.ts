@@ -11,6 +11,7 @@ import { AuthenticationService } from "./auth.service";
 import { ConfirmEmailDto, ForgetPasswordDto, GoogleSignupDto, LoginBodyDto, ResetPasswordDto, SignupBodyDto } from "./dto/signup.dto";
 import { succesResponse } from "src/common/utils/response";
 import { IResponse } from "src/common/interfaces/response.interfae";
+import { RoleEnum } from "src/common/enums/user.enum";
 
 @Controller("auth")
 export class AuthenticationController {
@@ -30,10 +31,15 @@ export class AuthenticationController {
 
   @HttpCode(200)
   @Post("login")
-  async login(@Body() body: LoginBodyDto): Promise<IResponse<{ credentials: { accessToken: string; refreshToken: string } }>> {
+  async login(@Body() body: LoginBodyDto): Promise<IResponse<{ credentials: { accessToken: string; refreshToken: string }; user: { role: RoleEnum } }>> {
     const data = await this.authenticationService.login(body);
     return succesResponse({
-      data: { credentials: data.data.credentials },
+      data: { 
+        credentials: data.data.credentials,
+        user: {
+          role: data.user.role
+        }
+      },
       message: data.message,
       status: 200
     });
