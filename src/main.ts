@@ -8,6 +8,7 @@ import * as express from 'express';
 async function bootstrap() {
   const port=process.env.PORT ?? 5000
   const app = await NestFactory.create(AppModule);
+  app.setGlobalPrefix('api');
   app.enableCors({
     origin: [
       "https://davincismagictouch.be",
