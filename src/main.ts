@@ -9,7 +9,7 @@ async function bootstrap() {
   const port=process.env.PORT ?? 5000
   const app = await NestFactory.create(AppModule);
   app.enableCors({
-    origin: ["https://davincismagictouch.be", "http://localhost:3000"],
+    origin: ["https://davincismagictouch.be", "http://localhost:3000","https://dashboard.davincismagictouch.be/"],
     credentials: true,
   })
   app.use("/order/webhook",express.raw({type:'application/json'}))
