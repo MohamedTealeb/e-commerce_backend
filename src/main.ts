@@ -8,7 +8,10 @@ import * as express from 'express';
 async function bootstrap() {
   const port=process.env.PORT ?? 5000
   const app = await NestFactory.create(AppModule);
-  app.enableCors()
+  app.use({
+    origin: ["https://davincismagictouch.be", "http://localhost:3000"],
+    credentials: true,
+  })
   app.use("/order/webhook",express.raw({type:'application/json'}))
   app.use(setDefaultLanguage)
   app.useGlobalInterceptors(new LoggingInterceptor)
