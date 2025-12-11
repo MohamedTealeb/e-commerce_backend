@@ -12,7 +12,8 @@ async function bootstrap() {
     origin: [
       "https://davincismagictouch.be",
       "https://dashboard.davincismagictouch.be",
-      "http://localhost:3000"
+      "http://localhost:3000",
+      "http://localhost:3009",
     ],
     credentials: true,
    
