@@ -11,6 +11,7 @@ export interface ICategory {
     description?:string,
     image:string,
     hasSubcategories?: boolean,
+    subcategories?: Types.ObjectId[] | ICategory[],
  
     brands?:Types.ObjectId[] | IBrand[],
     createdBy:Types.ObjectId | IUser,

@@ -30,6 +30,8 @@ export class Category implements ICategory {
     image:string
     @Prop({type:Boolean, default:false})
     hasSubcategories?: boolean
+    @Prop({type:[{type:Types.ObjectId,ref:"Category"}], default:[]})
+    subcategories?: Types.ObjectId[] | Category[]
     @Prop({type:Types.ObjectId,required:true,ref:"User"})
     createdBy:Types.ObjectId | IUser
     @Prop({type:Types.ObjectId,ref:"User"})

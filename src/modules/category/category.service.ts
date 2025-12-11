@@ -30,10 +30,34 @@ export class CategoryService {
     }
 
     const image: string = file ? `/${file.finalPath}` : '';
+    const subcategoriesRaw = createCategoryDto.subcategories || [];
+    let subcategories: Types.ObjectId[] = [];
+    if (subcategoriesRaw.length) {
+      subcategories = [
+        ...new Set(
+          subcategoriesRaw.map((subcategory) =>
+            Types.ObjectId.createFromHexString(subcategory as unknown as string),
+          ),
+        ),
+      ];
+      const foundSubcategories = await this.categoryRepository.find({
+        filter: { _id: { $in: subcategories } } as any,
+      });
+      if (foundSubcategories.length !== subcategories.length) {
+        throw new BadRequestException('some of mentioned subcategories are not found');
+      }
+    }
 
     const category = await this.categoryRepository.create({
       data: {
         ...createCategoryDto,
+        hasSubcategories:
+          subcategories.length > 0
+            ? true
+            : typeof createCategoryDto.hasSubcategories === 'boolean'
+            ? createCategoryDto.hasSubcategories
+            : false,
+        subcategories,
         image,
         createdBy: user._id,
       },
@@ -59,7 +83,46 @@ export class CategoryService {
       page,
       size,
       options: {
-        populate: 'products',
+        populate: [
+          {
+            path: 'products',
+            populate: [
+              {
+                path: 'brand',
+                select: 'name slug',
+              },
+              {
+                path: 'createdBy',
+                select: 'firstName lastName email',
+              },
+              {
+                path: 'updatedBy',
+                select: 'firstName lastName email',
+              },
+            ],
+          },
+          {
+            path: 'subcategories',
+            select: 'name slug description image hasSubcategories',
+            populate: {
+              path: 'products',
+              populate: [
+                {
+                  path: 'brand',
+                  select: 'name slug',
+                },
+                {
+                  path: 'createdBy',
+                  select: 'firstName lastName email',
+                },
+                {
+                  path: 'updatedBy',
+                  select: 'firstName lastName email',
+                },
+              ],
+            },
+          },
+        ],
       },
     });
     return result;
@@ -72,7 +135,46 @@ export class CategoryService {
         ...(archive ? { paranoId: false, freezedAt: { $exists: true } } : {}),
       },
       options: {
-        populate: 'products',
+        populate: [
+          {
+            path: 'products',
+            populate: [
+              {
+                path: 'brand',
+                select: 'name slug',
+              },
+              {
+                path: 'createdBy',
+                select: 'firstName lastName email',
+              },
+              {
+                path: 'updatedBy',
+                select: 'firstName lastName email',
+              },
+            ],
+          },
+          {
+            path: 'subcategories',
+            select: 'name slug description image hasSubcategories',
+            populate: {
+              path: 'products',
+              populate: [
+                {
+                  path: 'brand',
+                  select: 'name slug',
+                },
+                {
+                  path: 'createdBy',
+                  select: 'firstName lastName email',
+                },
+                {
+                  path: 'updatedBy',
+                  select: 'firstName lastName email',
+                },
+              ],
+            },
+          },
+        ],
       },
     });
     if (!result) {
@@ -94,6 +196,31 @@ export class CategoryService {
         _id: categoryId,
         ...(archive ? { paranoId: false, freezedAt: { $exists: true } } : {}),
       },
+      options: {
+        populate: [
+          {
+            path: 'subcategories',
+            select: 'name slug description image hasSubcategories',
+            populate: {
+              path: 'products',
+              populate: [
+                {
+                  path: 'brand',
+                  select: 'name slug',
+                },
+                {
+                  path: 'createdBy',
+                  select: 'firstName lastName email',
+                },
+                {
+                  path: 'updatedBy',
+                  select: 'firstName lastName email',
+                },
+              ],
+            },
+          },
+        ],
+      },
     });
 
     if (!category) {
@@ -105,7 +232,6 @@ export class CategoryService {
 
     const products = await this.productRepository.paginte({
       filter: {
-        // هات كل المنتجات المرتبطة بالكاتيجوري دي فقط
         category: category._id as any,
       } as any,
       page: pageArg,
@@ -147,7 +273,7 @@ export class CategoryService {
       throw new ConflictException('Category already exists');
     }
     
-    const { removeBrands: _omitRemoveBrands, brands, __hasFiles: _omitHasFiles, ...restUpdate } = dto;
+    const { removeBrands: _omitRemoveBrands, brands, __hasFiles: _omitHasFiles, subcategories, ...restUpdate } = dto;
     
     let brandsUpdate: any = {};
     if (dto?.brands || dto?.removeBrands) {
@@ -186,9 +312,36 @@ export class CategoryService {
       };
     }
     
+    let subcategoriesUpdate: any = {};
+    if (subcategories !== undefined) {
+      const subcategoriesRaw = subcategories || [];
+      const subcategoriesToSet: Types.ObjectId[] = [
+        ...new Set(
+          subcategoriesRaw.map((subcategory: any) =>
+            Types.ObjectId.createFromHexString(subcategory as unknown as string),
+          ),
+        ),
+      ];
+      if (
+        subcategoriesToSet.length > 0 &&
+        (await this.categoryRepository.find({ filter: { _id: { $in: subcategoriesToSet } } as any })).length !==
+          subcategoriesToSet.length
+      ) {
+        throw new BadRequestException('some of mentioned subcategories are not found');
+      }
+      subcategoriesUpdate = {
+        subcategories: subcategoriesToSet,
+      };
+      // Always sync hasSubcategories with provided subcategories unless explicitly overridden
+      if (restUpdate.hasSubcategories === undefined) {
+        subcategoriesUpdate.hasSubcategories = subcategoriesToSet.length > 0;
+      }
+    }
+    
     const updatePayload: any = {
       updatedBy: user._id,
-      ...brandsUpdate
+      ...brandsUpdate,
+      ...subcategoriesUpdate
     };
     
     if (restUpdate && Object.keys(restUpdate).length > 0) {
