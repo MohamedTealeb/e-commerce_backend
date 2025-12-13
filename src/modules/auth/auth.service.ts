@@ -55,8 +55,6 @@ async signup(data:SignupBodyDto):Promise<{message: string}>{
  
  const otp = generateNumberOtp();
  
- const encryptedOtp = await generateHash(otp.toString());
- 
  const user=await this.userRepository.create({
     data:{
       firstName,
@@ -73,7 +71,7 @@ async signup(data:SignupBodyDto):Promise<{message: string}>{
  
  const otpRecord=await this.otpRepository.create({
   data:{
-      code:otp,
+      code:otp.toString(),
       expiredAt:new Date(Date.now()+15*60*1000),
       createdBy:user._id,
       type:otpEnum.ConfirmEmail
@@ -159,7 +157,7 @@ async login(data: LoginBodyDto) {
       throw new ConflictException('OTP code has expired');
     }
     
-    const isValidOtp = await compareHash(otp, otpRecord.code);
+    const isValidOtp = await compareHash(otp.toString(), otpRecord.code);
     if (!isValidOtp) {
       throw new ConflictException('Invalid OTP code');
     }
@@ -296,7 +294,7 @@ async login(data: LoginBodyDto) {
       throw new ConflictException('OTP code has expired');
     }
     
-    const isValidOtp = await compareHash(otp, otpRecord.code);
+    const isValidOtp = await compareHash(otp.toString(), otpRecord.code);
     if (!isValidOtp) {
       throw new ConflictException('Invalid OTP code');
     }

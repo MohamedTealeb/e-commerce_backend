@@ -30,26 +30,30 @@ OtpSchema.pre("save",async function(this:OtpDocument&{wasNew:boolean,plainOtp?:s
     this.wasNew=this.isNew
     if(this.isModified("code")){
         this.plainOtp=this.code
-    this.code=await generateHash(this.code)
-    await this.populate([{path:"createdBy",select:"email"}])
-  }
-  next()
+        this.code=await generateHash(this.code)
+    }
+    next()
 }
 ) 
 
 OtpSchema.post("save",async function(doc ,next){
-    const that=this as OtpDocument&{wasNew:boolean,plainOtp?:string}
+    const docWithExtras = doc as OtpDocument&{wasNew:boolean,plainOtp?:string}
 
-    if(that.wasNew&&that.plainOtp){
-   emailEvent.emit(that.type,{
-    to:(that.createdBy as any).email,
-    otp:that.plainOtp,
-   })
+    if(docWithExtras.wasNew&&docWithExtras.plainOtp){
+        try {
+            await doc.populate([{path:"createdBy",select:"email"}])
+            const userEmail = (doc.createdBy as any)?.email;
+            if(userEmail){
+                emailEvent.emit(doc.type,{
+                    to: userEmail,
+                    otp:docWithExtras.plainOtp,
+                })
+            }
+        } catch (error) {
+            console.error('Error in OTP post-save hook:', error);
+        }
     }
-
-
     next()
-
 })
 
 
