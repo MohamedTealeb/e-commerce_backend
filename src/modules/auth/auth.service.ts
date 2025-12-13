@@ -88,19 +88,17 @@ async signup(data:SignupBodyDto):Promise<{message: string}>{
  }
 }
 
-async login(data: LoginBodyDto): Promise<{
-  message: string;
-  data: {
-    credentials: {
-      accessToken: string;
-      refreshToken: string;
-    };
-  };
-  user: {
-    role: RoleEnum;
-  };
-}> {
+async login(data: LoginBodyDto) {
+  if (!data) {
+    throw new BadRequestException('Request body is missing');
+  }
+
   const { email, password } = data;
+
+  if (!email || !password) {
+    throw new BadRequestException('Email and password are required');
+  }
+
   const user = await this.userRepository.findOne({ filter: { email } });
 
   if (!user || !(await compareHash(password, user.password))) {
@@ -113,23 +111,27 @@ async login(data: LoginBodyDto): Promise<{
 
   const payload = { sub: user._id.toString() };
   const credentials = {
-    accessToken: await this.tokenSecurity.generateToken({payload}),
-    refreshToken: await this.tokenSecurity.generateToken({payload, options:{secret: process.env.JWT_REFRESH_SECRET || 'default-refresh-secret', expiresIn:Number(process.env.JWT_REFRESH_EXPIRES_IN) || 86400}}),
+    accessToken: await this.tokenSecurity.generateToken({ payload }),
+    refreshToken: await this.tokenSecurity.generateToken({
+      payload,
+      options: {
+        secret: process.env.JWT_REFRESH_SECRET || 'default-refresh-secret',
+        expiresIn: Number(process.env.JWT_REFRESH_EXPIRES_IN) || 86400
+      }
+    })
   };
 
   const { password: _, ...safeUser } = user;
 
   return {
     message: 'Login successful',
-    data: {
-      credentials,
-    },
-    user: {
-  
-      role: user.role
-    }
+    data: { credentials },
+    user: { role: user.role }
   };
 }
+
+
+  
 
 
   async confirmEmail(data: ConfirmEmailDto): Promise<{ message: string }> {
