@@ -14,7 +14,7 @@ import { OtpRepository } from "src/DB/repository/otp.repository";
 import { otpEnum } from "src/common/enums/otp.enum";
 import { InjectModel } from "@nestjs/mongoose";
 import { User } from "src/common/decoretors/credential.decorator";
-import { Model } from "mongoose";
+import { Model, Types } from "mongoose";
 import { UserDocument } from "src/DB/model/user.model";
 import { sign } from "jsonwebtoken";
 import { JwtService } from "@nestjs/jwt";
@@ -455,9 +455,13 @@ async login(data: LoginBodyDto) {
       throw new ConflictException('Invalid refresh token');
     }
     
-    // Find the user
+    // Find the user by ID (faster than email search)
+    const userId = (decoded as any).sub || (decoded as any).user?.id;
+    if (!userId) {
+      throw new ConflictException('Invalid refresh token');
+    }
     const user = await this.userRepository.findOne({ 
-      filter: { email: (decoded as any).user?.email || (decoded as any).sub } 
+      filter: { _id: new Types.ObjectId(userId) } 
     });
     
     if (!user) {
