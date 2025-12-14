@@ -68,62 +68,76 @@ export class CategoryService {
   async findAll(data: SearchDto, archive: boolean = false) {
     const { page, size, search } = data;
     
-    // Get all categories (both archived and non-archived) that have subcategories 
-    // to exclude those subcategories from main results
+    // Get all categories that have subcategories to exclude those subcategories from main results
     const categoriesWithSubcategories = await this.categoryRepository.find({
       filter: {
         subcategories: { $exists: true, $ne: [] },
         paranoId: false,
       } as any,
+      options: { select: 'subcategories' },
     });
     
     // Collect all category IDs that are used as subcategories in any category
-    const subcategoryIds = new Set<string>();
+    const subcategoryIds: Types.ObjectId[] = [];
+    const seenIds = new Set<string>();
+    
     categoriesWithSubcategories.forEach((category) => {
       if (category.subcategories && Array.isArray(category.subcategories)) {
         category.subcategories.forEach((subId) => {
-          let idToAdd: string | null = null;
+          let objectId: Types.ObjectId | null = null;
           
           if (subId instanceof Types.ObjectId) {
-            idToAdd = subId.toString();
-          } else if (typeof subId === 'string') {
-            idToAdd = subId;
-          } else if (subId && typeof subId === 'object' && '_id' in subId) {
-            // Handle populated subcategories
-            const id = (subId as any)._id;
+            objectId = subId;
+          } else if (typeof subId === 'string' && Types.ObjectId.isValid(subId)) {
+            objectId = Types.ObjectId.createFromHexString(subId);
+          } else if (subId && typeof subId === 'object') {
+            // Handle populated subcategories or objects with _id
+            const id = (subId as any)._id || subId;
             if (id instanceof Types.ObjectId) {
-              idToAdd = id.toString();
-            } else if (typeof id === 'string') {
-              idToAdd = id;
+              objectId = id;
+            } else if (typeof id === 'string' && Types.ObjectId.isValid(id)) {
+              objectId = Types.ObjectId.createFromHexString(id);
             }
           }
           
-          if (idToAdd && Types.ObjectId.isValid(idToAdd)) {
-            subcategoryIds.add(idToAdd);
+          if (objectId) {
+            const idString = objectId.toString();
+            if (!seenIds.has(idString)) {
+              seenIds.add(idString);
+              subcategoryIds.push(objectId);
+            }
           }
         });
       }
     });
     
+    // Build filter
+    const filter: any = {};
+    
+    if (search) {
+      filter.$or = [
+        { name: { $regex: search, $options: 'i' } },
+        { slug: { $regex: search, $options: 'i' } },
+        { slogan: { $regex: search, $options: 'i' } },
+      ];
+    }
+    
+    if (archive) {
+      filter.paranoId = false;
+      filter.freezedAt = { $exists: true };
+    } else {
+      // Exclude archived categories when archive = false
+      filter.paranoId = false;
+      filter.freezedAt = { $exists: false };
+    }
+    
+    // Exclude categories that are used as subcategories in other categories
+    if (subcategoryIds.length > 0) {
+      filter._id = { $nin: subcategoryIds };
+    }
+    
     const result = await this.categoryRepository.paginte({
-      filter: {
-        ...(search
-          ? {
-              $or: [
-                { name: { $regex: search, $options: 'i' } },
-                { slug: { $regex: search, $options: 'i' } },
-                { slogan: { $regex: search, $options: 'i' } },
-              ],
-            }
-          : {}),
-        ...(archive ? { paranoId: false, freezedAt: { $exists: true } } : {}),
-        // Exclude categories that are used as subcategories in other categories
-        ...(subcategoryIds.size > 0 ? { 
-          _id: { 
-            $nin: Array.from(subcategoryIds).map(id => Types.ObjectId.createFromHexString(id))
-          } 
-        } : {}),
-      },
+      filter,
       page,
       size,
       options: {
