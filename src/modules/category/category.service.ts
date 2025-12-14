@@ -40,11 +40,18 @@ export class CategoryService {
           ),
         ),
       ];
-      const foundSubcategories = await this.categoryRepository.find({
-        filter: { _id: { $in: subcategories } } as any,
-      });
-      if (foundSubcategories.length !== subcategories.length) {
-        throw new BadRequestException('some of mentioned subcategories are not found');
+      
+      if (subcategories.length > 0) {
+        const foundSubcategories = await this.categoryRepository.find({
+          filter: { 
+            _id: { $in: subcategories },
+            paranoId: false,
+            freezedAt: { $exists: false }
+          } as any,
+        });
+        if (foundSubcategories.length !== subcategories.length) {
+          throw new BadRequestException('some of mentioned subcategories are not found or are archived');
+        }
       }
     }
 
@@ -72,72 +79,54 @@ export class CategoryService {
     const categoriesWithSubcategories = await this.categoryRepository.find({
       filter: {
         subcategories: { $exists: true, $ne: [] },
-        paranoId: false,
+        ...(archive ? { paranoId: false, freezedAt: { $exists: true } } : { paranoId: false, freezedAt: { $exists: false } }),
       } as any,
       options: { select: 'subcategories' },
     });
     
-    // Collect all category IDs that are used as subcategories in any category
-    const subcategoryIds: Types.ObjectId[] = [];
-    const seenIds = new Set<string>();
-    
+    // Collect all category IDs that are used as subcategories
+    const subcategoryIdsSet = new Set<string>();
     categoriesWithSubcategories.forEach((category) => {
       if (category.subcategories && Array.isArray(category.subcategories)) {
         category.subcategories.forEach((subId) => {
-          let objectId: Types.ObjectId | null = null;
-          
+          let idString: string | null = null;
           if (subId instanceof Types.ObjectId) {
-            objectId = subId;
+            idString = subId.toString();
           } else if (typeof subId === 'string' && Types.ObjectId.isValid(subId)) {
-            objectId = Types.ObjectId.createFromHexString(subId);
-          } else if (subId && typeof subId === 'object') {
-            // Handle populated subcategories or objects with _id
-            const id = (subId as any)._id || subId;
+            idString = subId;
+          } else if (subId && typeof subId === 'object' && '_id' in subId) {
+            const id = (subId as any)._id;
             if (id instanceof Types.ObjectId) {
-              objectId = id;
+              idString = id.toString();
             } else if (typeof id === 'string' && Types.ObjectId.isValid(id)) {
-              objectId = Types.ObjectId.createFromHexString(id);
+              idString = id;
             }
           }
-          
-          if (objectId) {
-            const idString = objectId.toString();
-            if (!seenIds.has(idString)) {
-              seenIds.add(idString);
-              subcategoryIds.push(objectId);
-            }
+          if (idString) {
+            subcategoryIdsSet.add(idString);
           }
         });
       }
     });
     
-    // Build filter
-    const filter: any = {};
-    
-    if (search) {
-      filter.$or = [
-        { name: { $regex: search, $options: 'i' } },
-        { slug: { $regex: search, $options: 'i' } },
-        { slogan: { $regex: search, $options: 'i' } },
-      ];
-    }
-    
-    if (archive) {
-      filter.paranoId = false;
-      filter.freezedAt = { $exists: true };
-    } else {
-      // Exclude archived categories when archive = false
-      filter.paranoId = false;
-      filter.freezedAt = { $exists: false };
-    }
-    
-    // Exclude categories that are used as subcategories in other categories
-    if (subcategoryIds.length > 0) {
-      filter._id = { $nin: subcategoryIds };
-    }
+    // Convert to ObjectId array for the filter
+    const subcategoryIds = Array.from(subcategoryIdsSet).map(id => Types.ObjectId.createFromHexString(id));
     
     const result = await this.categoryRepository.paginte({
-      filter,
+      filter: {
+        ...(search
+          ? {
+              $or: [
+                { name: { $regex: search, $options: 'i' } },
+                { slug: { $regex: search, $options: 'i' } },
+                { slogan: { $regex: search, $options: 'i' } },
+              ],
+            }
+          : {}),
+        ...(archive ? { paranoId: false, freezedAt: { $exists: true } } : {}),
+        // Exclude categories that are used as subcategories in other categories
+        ...(subcategoryIds.length > 0 ? { _id: { $nin: subcategoryIds } } : {}),
+      },
       page,
       size,
       options: {
@@ -380,13 +369,26 @@ export class CategoryService {
           ),
         ),
       ];
-      if (
-        subcategoriesToSet.length > 0 &&
-        (await this.categoryRepository.find({ filter: { _id: { $in: subcategoriesToSet } } as any })).length !==
-          subcategoriesToSet.length
-      ) {
-        throw new BadRequestException('some of mentioned subcategories are not found');
+      
+      // Prevent category from adding itself as a subcategory
+      if (subcategoriesToSet.some(subId => subId.equals(categoryId))) {
+        throw new BadRequestException('Category cannot be added as its own subcategory');
       }
+      
+      if (subcategoriesToSet.length > 0) {
+        const foundSubcategories = await this.categoryRepository.find({ 
+          filter: { 
+            _id: { $in: subcategoriesToSet },
+            paranoId: false,
+            freezedAt: { $exists: false }
+          } as any 
+        });
+        
+        if (foundSubcategories.length !== subcategoriesToSet.length) {
+          throw new BadRequestException('some of mentioned subcategories are not found or are archived');
+        }
+      }
+      
       subcategoriesUpdate = {
         subcategories: subcategoriesToSet,
       };
@@ -458,4 +460,103 @@ return category;
     return "Done";
        
       }
+
+  /**
+   * Add subcategories to a category
+   */
+  async addSubcategory(
+    categoryId: Types.ObjectId,
+    subcategoryIds: (Types.ObjectId | string)[],
+    user: UserDocument,
+  ): Promise<CategoryDocument | Lean<CategoryDocument>> {
+    // Check if category exists
+    const category = await this.categoryRepository.findOne({
+      filter: { _id: categoryId, paranoId: false, freezedAt: { $exists: false } },
+    });
+    if (!category) {
+      throw new NotFoundException('Category not found or is archived');
+    }
+
+    // Convert subcategory IDs to ObjectId array
+    const subcategoriesToAdd: Types.ObjectId[] = [
+      ...new Set(
+        subcategoryIds.map((subId) =>
+          subId instanceof Types.ObjectId
+            ? subId
+            : Types.ObjectId.createFromHexString(subId as string),
+        ),
+      ),
+    ];
+
+    // Prevent category from adding itself as a subcategory
+    if (subcategoriesToAdd.some((subId) => subId.equals(categoryId))) {
+      throw new BadRequestException('Category cannot be added as its own subcategory');
+    }
+
+    // Validate that all subcategories exist and are not archived
+    if (subcategoriesToAdd.length > 0) {
+      const foundSubcategories = await this.categoryRepository.find({
+        filter: {
+          _id: { $in: subcategoriesToAdd },
+          paranoId: false,
+          freezedAt: { $exists: false },
+        } as any,
+      });
+
+      if (foundSubcategories.length !== subcategoriesToAdd.length) {
+        throw new BadRequestException('some of mentioned subcategories are not found or are archived');
+      }
+
+      // Check if any subcategory is already added
+      const existingSubcategories = (category.subcategories || []) as Types.ObjectId[];
+      const existingIds = new Set(
+        existingSubcategories.map((id) => {
+          if (id instanceof Types.ObjectId) {
+            return id.toString();
+          } else if (typeof id === 'string') {
+            return id;
+          } else if (id && typeof id === 'object' && '_id' in id) {
+            const idValue = (id as any)._id;
+            return idValue instanceof Types.ObjectId ? idValue.toString() : String(idValue);
+          }
+          return String(id);
+        }),
+      );
+
+      const duplicates = subcategoriesToAdd.filter((id) =>
+        existingIds.has(id.toString()),
+      );
+
+      if (duplicates.length > 0) {
+        throw new ConflictException(
+          `Subcategories with IDs ${duplicates.map((id) => id.toString()).join(', ')} are already added`,
+        );
+      }
+    }
+
+    // Add subcategories using $setUnion to avoid duplicates
+    const updatedCategory = await this.categoryRepository.findOneAndUpdate({
+      filter: { _id: categoryId },
+      update: [
+        {
+          $set: {
+            subcategories: {
+              $setUnion: [
+                { $ifNull: ['$subcategories', []] },
+                subcategoriesToAdd,
+              ],
+            },
+            hasSubcategories: true,
+            updatedBy: user._id,
+          },
+        },
+      ],
+    });
+
+    if (!updatedCategory) {
+      throw new BadRequestException('Failed to update category');
+    }
+
+    return updatedCategory;
+  }
 }

@@ -19,6 +19,7 @@ import { CreateCategoryDto } from './dto/create-category.dto';
 import { SearchDto } from 'src/common/dtos/search.dto';
 import { GetAllResponse } from 'src/common/entities/search.entity';
 import { ProductResponse } from 'src/modules/product/entities/product.entity';
+import { AddSubcategoryDto } from './dto/add-subcategory.dto';
 
 
 @UsePipes(new ValidationPipe({whitelist:true ,forbidNonWhitelisted:true}))
@@ -65,6 +66,26 @@ async findAllArchive(
   const result = await this.categoryService.findAll(query,true);
   return succesResponse({data:result})
 }
+
+  @Auth(endpoint.create)
+  @Post(':categoryId/subcategory')
+  async addSubcategory(
+    @Param() params: CategoryParamsDto,
+    @Body() addSubcategoryDto: AddSubcategoryDto,
+    @User() user: UserDocument,
+  ): Promise<IResponse<CategoryResponse>> {
+    const category = await this.categoryService.addSubcategory(
+      params.categoryId,
+      addSubcategoryDto.subcategoryIds,
+      user,
+    );
+    return succesResponse<CategoryResponse>({
+      data: { category },
+      message: 'Subcategories added successfully',
+      status: 200,
+    });
+  }
+
   @Get(':categoryId')
   async findOne(
     @Param() params: CategoryParamsDto,
