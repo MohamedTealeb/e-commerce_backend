@@ -67,6 +67,30 @@ export class CategoryService {
 
   async findAll(data: SearchDto, archive: boolean = false) {
     const { page, size, search } = data;
+    
+    // Get all categories that have subcategories to exclude those subcategories from main results
+    const categoriesWithSubcategories = await this.categoryRepository.find({
+      filter: {
+        subcategories: { $exists: true, $ne: [] },
+        ...(archive ? { paranoId: false, freezedAt: { $exists: true } } : { paranoId: false, freezedAt: { $exists: false } }),
+      } as any,
+      options: { select: 'subcategories' },
+    });
+    
+    // Collect all category IDs that are used as subcategories
+    const subcategoryIds = new Set<Types.ObjectId>();
+    categoriesWithSubcategories.forEach((category) => {
+      if (category.subcategories && Array.isArray(category.subcategories)) {
+        category.subcategories.forEach((subId) => {
+          if (subId instanceof Types.ObjectId) {
+            subcategoryIds.add(subId);
+          } else if (typeof subId === 'string') {
+            subcategoryIds.add(Types.ObjectId.createFromHexString(subId));
+          }
+        });
+      }
+    });
+    
     const result = await this.categoryRepository.paginte({
       filter: {
         ...(search
@@ -79,6 +103,8 @@ export class CategoryService {
             }
           : {}),
         ...(archive ? { paranoId: false, freezedAt: { $exists: true } } : {}),
+        // Exclude categories that are used as subcategories in other categories
+        ...(subcategoryIds.size > 0 ? { _id: { $nin: Array.from(subcategoryIds) } } : {}),
       },
       page,
       size,
