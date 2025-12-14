@@ -12,10 +12,10 @@ export class LoggingInterceptor implements NestInterceptor {
     return next
       .handle()
       .pipe(
-        timeout(1000),
+        timeout(Number(process.env.REQUEST_TIMEOUT) || 30000), // 30 seconds default, configurable via env
         catchError(err => {
         if (err instanceof TimeoutError) {
-          return throwError(() => new RequestTimeoutException());
+          return throwError(() => new RequestTimeoutException('Request Timeout'));
         }
         return throwError(() => err);
       }),

@@ -12,10 +12,6 @@ import { HttpStatusEnum } from '../enums/http-status.enum';
 @Catch()
 export class HttpExceptionFilter implements ExceptionFilter {
   private getUserFriendlyMessage(status: number): string {
-
-
-   
-
     if (status === HttpStatusEnum.BAD_REQUEST) {
       return 'INVALID_REQUEST';
     } else if (status === HttpStatusEnum.UNAUTHORIZED) {
@@ -24,6 +20,8 @@ export class HttpExceptionFilter implements ExceptionFilter {
       return 'FORBIDDEN';
     } else if (status === HttpStatusEnum.INVALID_REQUEST) {
       return 'INVALID_REQUEST';
+    } else if (status === HttpStatusEnum.REQUEST_TIMEOUT) {
+      return 'REQUEST_TIMEOUT';
     } else if (status === HttpStatusEnum.CONFLICT) {
       return 'CONFLICT';
     } else if (status >= HttpStatusEnum.INTERNAL_SERVER_ERROR) {
@@ -63,20 +61,12 @@ export class HttpExceptionFilter implements ExceptionFilter {
 
     const errorMessage = this.getUserFriendlyMessage(status);
 
-    if (status === HttpStatus.NOT_FOUND || status === 404 as any || (status as number) === HttpStatusEnum.INVALID_REQUEST) {
-      const errorResponseObj = errorResponse({
-        cause: cause, 
-        errorMessage: errorMessage,
-        status: status as number,
-      });
-      response.status(status).json(errorResponseObj);
-    } else {
-      const errorResponseObj = errorResponse({
-        cause: cause, 
-        errorMessage: errorMessage, 
-      });
-      response.status(status).json(errorResponseObj);
-    }
+    const errorResponseObj = errorResponse({
+      cause: cause, 
+      errorMessage: errorMessage,
+      status: status as number,
+    });
+    response.status(status).json(errorResponseObj);
   }
 }
 
