@@ -68,16 +68,17 @@ export class CategoryService {
   async findAll(data: SearchDto, archive: boolean = false) {
     const { page, size, search } = data;
     
-    // Get all categories that have subcategories to exclude those subcategories from main results
+    // Get all categories (both archived and non-archived) that have subcategories 
+    // to exclude those subcategories from main results
     const categoriesWithSubcategories = await this.categoryRepository.find({
       filter: {
         subcategories: { $exists: true, $ne: [] },
-        ...(archive ? { paranoId: false, freezedAt: { $exists: true } } : { paranoId: false, freezedAt: { $exists: false } }),
+        paranoId: false,
       } as any,
       options: { select: 'subcategories' },
     });
     
-    // Collect all category IDs that are used as subcategories
+    // Collect all category IDs that are used as subcategories in any category
     const subcategoryIds = new Set<Types.ObjectId>();
     categoriesWithSubcategories.forEach((category) => {
       if (category.subcategories && Array.isArray(category.subcategories)) {
@@ -86,6 +87,14 @@ export class CategoryService {
             subcategoryIds.add(subId);
           } else if (typeof subId === 'string') {
             subcategoryIds.add(Types.ObjectId.createFromHexString(subId));
+          } else if (subId && typeof subId === 'object' && '_id' in subId) {
+            // Handle populated subcategories
+            const id = (subId as any)._id || subId;
+            if (id instanceof Types.ObjectId) {
+              subcategoryIds.add(id);
+            } else if (typeof id === 'string') {
+              subcategoryIds.add(Types.ObjectId.createFromHexString(id));
+            }
           }
         });
       }
