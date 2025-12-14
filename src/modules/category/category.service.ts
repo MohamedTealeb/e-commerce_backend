@@ -75,26 +75,31 @@ export class CategoryService {
         subcategories: { $exists: true, $ne: [] },
         paranoId: false,
       } as any,
-      options: { select: 'subcategories' },
     });
     
     // Collect all category IDs that are used as subcategories in any category
-    const subcategoryIds = new Set<Types.ObjectId>();
+    const subcategoryIds = new Set<string>();
     categoriesWithSubcategories.forEach((category) => {
       if (category.subcategories && Array.isArray(category.subcategories)) {
         category.subcategories.forEach((subId) => {
+          let idToAdd: string | null = null;
+          
           if (subId instanceof Types.ObjectId) {
-            subcategoryIds.add(subId);
+            idToAdd = subId.toString();
           } else if (typeof subId === 'string') {
-            subcategoryIds.add(Types.ObjectId.createFromHexString(subId));
+            idToAdd = subId;
           } else if (subId && typeof subId === 'object' && '_id' in subId) {
             // Handle populated subcategories
-            const id = (subId as any)._id || subId;
+            const id = (subId as any)._id;
             if (id instanceof Types.ObjectId) {
-              subcategoryIds.add(id);
+              idToAdd = id.toString();
             } else if (typeof id === 'string') {
-              subcategoryIds.add(Types.ObjectId.createFromHexString(id));
+              idToAdd = id;
             }
+          }
+          
+          if (idToAdd && Types.ObjectId.isValid(idToAdd)) {
+            subcategoryIds.add(idToAdd);
           }
         });
       }
@@ -113,7 +118,11 @@ export class CategoryService {
           : {}),
         ...(archive ? { paranoId: false, freezedAt: { $exists: true } } : {}),
         // Exclude categories that are used as subcategories in other categories
-        ...(subcategoryIds.size > 0 ? { _id: { $nin: Array.from(subcategoryIds) } } : {}),
+        ...(subcategoryIds.size > 0 ? { 
+          _id: { 
+            $nin: Array.from(subcategoryIds).map(id => Types.ObjectId.createFromHexString(id))
+          } 
+        } : {}),
       },
       page,
       size,
