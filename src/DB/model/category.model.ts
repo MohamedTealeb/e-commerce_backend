@@ -1,7 +1,7 @@
 
 
 import { MongooseModule, Prop, Schema, SchemaFactory } from "@nestjs/mongoose";
-import { HydratedDocument, Types, UpdateQuery } from "mongoose";
+import mongoose, { HydratedDocument, Types, UpdateQuery } from "mongoose";
 import slugify from "slugify";
 import { IUser } from "src/common";
 import { IBrand } from "src/common/interfaces/brand.interface";
@@ -40,6 +40,12 @@ export class Category implements ICategory {
     freezedAt?: Date 
     @Prop({type:Date})
     restoredAt?: Date 
+
+ @Prop({ type: Types.ObjectId, ref: 'Category' })
+parent_id?: Types.ObjectId | Category;
+
+@Prop({ type: [{ type: Types.ObjectId, ref: 'Category' }], default: [] })
+sub_categories?: Types.ObjectId[] | Category[];
 
  
     @Prop({type:[{type:Types.ObjectId,ref:"Brand"}]})

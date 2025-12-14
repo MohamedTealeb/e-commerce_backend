@@ -45,25 +45,37 @@ export class CategoryController {
   }
 
   @Get()
- async findAll(@Query()  query:SearchDto):Promise<IResponse<GetAllResponse<CategoryResponse>>> {
+ async findAll(
+  @Query() query: SearchDto
+): Promise<IResponse<GetAllResponse<CategoryResponse>>> {
+  
   const result = await this.categoryService.findAll(query);
+
+  const docsCount = (result as any)?.docsCount || 0;
+  const limit = (result as any)?.limit || 0;
+  const pages = (result as any)?.pages || 0;
+  const currentPage = (result as any)?.currentPage || 1;
+  const docs = ((result as any)?.result || []).map((doc: any) => ({ category: doc }));
+
   const mapped: GetAllResponse<CategoryResponse> = {
     result: {
-      docsCount: (result as any).docsCount || 0,
-      limit: (result as any).limit || 0,
-      pages: (result as any).pages || 0,
-      currentPage: (result as any).currentPage || 1,
-      result: ((result as any).result || []).map((doc: any) => ({ category: doc })),
+      docsCount,
+      limit,
+      pages,
+      currentPage,
+      result: docs,
     },
   };
-   return succesResponse<GetAllResponse<CategoryResponse>>({data: mapped})
- }
+
+  return succesResponse<GetAllResponse<CategoryResponse>>({ data: mapped });
+}
+
 @Auth(endpoint.create)
   @Get('/archive')
 async findAllArchive(
   @Query()  query:SearchDto,
 ) {
-  const result = await this.categoryService.findAll(query,true);
+  const result = await this.categoryService.findAll(query);
   return succesResponse({data:result})
 }
 

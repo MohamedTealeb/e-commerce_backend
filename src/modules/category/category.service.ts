@@ -72,108 +72,33 @@ export class CategoryService {
     return category;
   }
 
-  async findAll(data: SearchDto, archive: boolean = false) {
-    const { page, size, search } = data;
-    
-    // Get all categories that have subcategories to exclude those subcategories from main results
-    const categoriesWithSubcategories = await this.categoryRepository.find({
-      filter: {
-        subcategories: { $exists: true, $ne: [] },
-        ...(archive ? { paranoId: false, freezedAt: { $exists: true } } : { paranoId: false, freezedAt: { $exists: false } }),
-      } as any,
-      options: { select: 'subcategories' },
-    });
-    
-    // Collect all category IDs that are used as subcategories
-    const subcategoryIdsSet = new Set<string>();
-    categoriesWithSubcategories.forEach((category) => {
-      if (category.subcategories && Array.isArray(category.subcategories)) {
-        category.subcategories.forEach((subId) => {
-          let idString: string | null = null;
-          if (subId instanceof Types.ObjectId) {
-            idString = subId.toString();
-          } else if (typeof subId === 'string' && Types.ObjectId.isValid(subId)) {
-            idString = subId;
-          } else if (subId && typeof subId === 'object' && '_id' in subId) {
-            const id = (subId as any)._id;
-            if (id instanceof Types.ObjectId) {
-              idString = id.toString();
-            } else if (typeof id === 'string' && Types.ObjectId.isValid(id)) {
-              idString = id;
-            }
-          }
-          if (idString) {
-            subcategoryIdsSet.add(idString);
-          }
-        });
-      }
-    });
-    
-    // Convert to ObjectId array for the filter
-    const subcategoryIds = Array.from(subcategoryIdsSet).map(id => Types.ObjectId.createFromHexString(id));
-    
-    const result = await this.categoryRepository.paginte({
-      filter: {
-        ...(search
-          ? {
-              $or: [
-                { name: { $regex: search, $options: 'i' } },
-                { slug: { $regex: search, $options: 'i' } },
-                { slogan: { $regex: search, $options: 'i' } },
-              ],
-            }
-          : {}),
-        ...(archive ? { paranoId: false, freezedAt: { $exists: true } } : {}),
-        // Exclude categories that are used as subcategories in other categories
-        ...(subcategoryIds.length > 0 ? { _id: { $nin: subcategoryIds } } : {}),
-      },
-      page,
-      size,
-      options: {
-        populate: [
-          {
-            path: 'products',
-            populate: [
-              {
-                path: 'brand',
-                select: 'name slug',
-              },
-              {
-                path: 'createdBy',
-                select: 'firstName lastName email',
-              },
-              {
-                path: 'updatedBy',
-                select: 'firstName lastName email',
-              },
-            ],
-          },
-          {
-            path: 'subcategories',
-            select: 'name slug description image hasSubcategories',
-            populate: {
-              path: 'products',
-              populate: [
-                {
-                  path: 'brand',
-                  select: 'name slug',
-                },
-                {
-                  path: 'createdBy',
-                  select: 'firstName lastName email',
-                },
-                {
-                  path: 'updatedBy',
-                  select: 'firstName lastName email',
-                },
-              ],
-            },
-          },
-        ],
-      },
-    });
-    return result;
+ async findAll(data: SearchDto) {
+  const { search, page = 1, size = 5 } = data;
+
+  const filter: any = {
+    parent_id: { $exists: false }
+  };
+
+  if (search) {
+    filter.name = { $regex: search, $options: 'i' };
   }
+
+  const categories = await this.categoryRepository.paginte({
+    filter,
+    page,
+    size,
+    select: '-sub_categories',
+    options: {
+      sort: { createdAt: -1 },
+      populate: {
+        path: 'parent_id',
+        select: 'name slug image',
+      },
+    },
+  });
+
+  return categories;
+}
 
   async findOne(categoryId: Types.ObjectId, archive: boolean = false) {
     const result = await this.categoryRepository.findOne({
