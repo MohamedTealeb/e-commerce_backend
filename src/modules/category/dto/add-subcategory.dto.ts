@@ -10,3 +10,4 @@ export class AddSubcategoryDto {
   @Transform(({ value }) => toArrayOrValue(value))
   subcategoryIds: Types.ObjectId[] | string[];
 }
+
