@@ -13,6 +13,7 @@ import { CartModule } from './modules/cart/cart.module';
 import { OrderModule } from './modules/order/order.module';
 import { CouponModule } from './modules/coupon/coupon.module';
 import { StaticsModule } from './modules/statics/statics.module';
+import { ContactModule } from './modules/contact/contact.module';
 import { PaymentService } from './common/utils/security/payment.service';
 import { CacheModule } from '@nestjs/cache-manager';
 
@@ -36,6 +37,7 @@ import { CacheModule } from '@nestjs/cache-manager';
     OrderModule,
     CouponModule,
     StaticsModule,
+    ContactModule,
 
     
     

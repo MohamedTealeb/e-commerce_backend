@@ -14,57 +14,22 @@ import { SearchDto } from 'src/common/dtos/search.dto';
 
 @Injectable()
 export class CategoryService {
-  constructor(
-    private readonly categoryRepository: CategoryRepository,
-    private readonly brandRepository: BrandRepository,
-    private readonly productRepository: ProductRepository,
-  ) {}
-
-  async create(createCategoryDto: CreateCategoryDto, file: IMulterFile, user: UserDocument): Promise<CategoryDocument> {
-    const { name } = createCategoryDto;
-    const checkCategory = await this.categoryRepository.findOne({ filter: { name, paranoId: false } });
-    if (checkCategory) {
-      throw new ConflictException(
-        checkCategory.freezedAt ? 'Duplicated with archived category' : 'Duplicated category name',
-      );
+  constructor(private readonly categoryRepository: CategoryRepository ,private readonly brandRepository: BrandRepository, private readonly productRepository: ProductRepository){}
+  async create(createCategoryDto: CreateCategoryDto,file:IMulterFile,user:UserDocument):Promise<CategoryDocument> {
+    const{name}=createCategoryDto;
+    const checkCategory=await this.categoryRepository.findOne({filter:{name,paranoId:false}});
+    if(checkCategory){
+      throw new ConflictException(checkCategory.freezedAt ? 'Duplicated with archived category' : 'Duplicated category name');
     }
+   
 
-    const image: string = file ? `/${file.finalPath}` : '';
-    const subcategoriesRaw = createCategoryDto.subcategories || [];
-    let subcategories: Types.ObjectId[] = [];
-    if (subcategoriesRaw.length) {
-      subcategories = [
-        ...new Set(
-          subcategoriesRaw.map((subcategory) =>
-            Types.ObjectId.createFromHexString(subcategory as unknown as string),
-          ),
-        ),
-      ];
-      
-      if (subcategories.length > 0) {
-        const foundSubcategories = await this.categoryRepository.find({
-          filter: { 
-            _id: { $in: subcategories },
-            paranoId: false,
-            freezedAt: { $exists: false }
-          } as any,
-        });
-        if (foundSubcategories.length !== subcategories.length) {
-          throw new BadRequestException('some of mentioned subcategories are not found or are archived');
-        }
-      }
-    }
-
-    const category = await this.categoryRepository.create({
-      data: {
+  
+    const image:string = file ? `/${file.finalPath}` : '';
+    
+    const category=await this.categoryRepository.create({
+     data:
+      {
         ...createCategoryDto,
-        hasSubcategories:
-          subcategories.length > 0
-            ? true
-            : typeof createCategoryDto.hasSubcategories === 'boolean'
-            ? createCategoryDto.hasSubcategories
-            : false,
-        subcategories,
         image,
         createdBy: user._id,
       },
@@ -72,161 +37,40 @@ export class CategoryService {
     return category;
   }
 
- async findAll(data: SearchDto) {
-  const { search, page = 1, size = 5 } = data;
-
-  const filter: any = {
-    parent_id: { $exists: false }
-  };
-
-  if (search) {
-    filter.name = { $regex: search, $options: 'i' };
-  }
-
-  const categories = await this.categoryRepository.paginte({
-    filter,
-    page,
-    size,
-    select: '-sub_categories',
-    options: {
-      sort: { createdAt: -1 },
-      populate: {
-        path: 'parent_id',
-        select: 'name slug image',
+ async findAll(data:SearchDto,archive:boolean=false) {
+  const{page,size,search}=data;
+    const result=await this.categoryRepository.paginte({
+      filter:{
+        ...(search ?{$or:[
+          {name:{$regex:search,$options:'i'}},
+          {slug:{$regex:search,$options:'i'}},
+          {slogan:{$regex:search,$options:'i'}},
+        ]}:{}),
+        ...(archive?{paranoId:false,freezedAt:{$exists:true}}:{}),
+      
       },
-    },
-  });
-
-  return categories;
-}
-
-  async findOne(categoryId: Types.ObjectId, archive: boolean = false) {
-    const result = await this.categoryRepository.findOne({
-      filter: {
-        _id: categoryId,
-        ...(archive ? { paranoId: false, freezedAt: { $exists: true } } : {}),
-      },
-      options: {
-        populate: [
-          {
-            path: 'products',
-            populate: [
-              {
-                path: 'brand',
-                select: 'name slug',
-              },
-              {
-                path: 'createdBy',
-                select: 'firstName lastName email',
-              },
-              {
-                path: 'updatedBy',
-                select: 'firstName lastName email',
-              },
-            ],
-          },
-          {
-            path: 'subcategories',
-            select: 'name slug description image hasSubcategories',
-            populate: {
-              path: 'products',
-              populate: [
-                {
-                  path: 'brand',
-                  select: 'name slug',
-                },
-                {
-                  path: 'createdBy',
-                  select: 'firstName lastName email',
-                },
-                {
-                  path: 'updatedBy',
-                  select: 'firstName lastName email',
-                },
-              ],
-            },
-          },
-        ],
-      },
-    });
-    if (!result) {
-      throw new NotFoundException('Category not found');
-    }
+      page,
+      size,
+      options:{
+        populate:'products'
+      }
+    })
     return result;
   }
-
-  /**
-   * Find one category and return its products with pagination
-   */
-  async findOneWithProducts(
-    categoryId: Types.ObjectId,
-    data: SearchDto,
-    archive: boolean = false,
-  ) {
-    const category = await this.categoryRepository.findOne({
-      filter: {
-        _id: categoryId,
-        ...(archive ? { paranoId: false, freezedAt: { $exists: true } } : {}),
+ async findOne(brandId: Types.ObjectId,archive:boolean=false) {
+    const result=await this.categoryRepository.findOne({
+      filter:{
+        _id:brandId,
+        ...(archive?{paranoId:false,freezedAt:{$exists:true}}:{}),
       },
-      options: {
-        populate: [
-          {
-            path: 'subcategories',
-            select: 'name slug description image hasSubcategories',
-            populate: {
-              path: 'products',
-              populate: [
-                {
-                  path: 'brand',
-                  select: 'name slug',
-                },
-                {
-                  path: 'createdBy',
-                  select: 'firstName lastName email',
-                },
-                {
-                  path: 'updatedBy',
-                  select: 'firstName lastName email',
-                },
-              ],
-            },
-          },
-        ],
-      },
-    });
-
-    if (!category) {
-      throw new NotFoundException('Category not found');
+      options:{
+        populate:'products'
+      }
+    })
+    if(!result){
+      throw new NotFoundException('Brand not found');
     }
-
-    const { page, size } = data || ({} as SearchDto);
-    const pageArg: number | 'all' = typeof page === 'number' ? page : 'all';
-
-    const products = await this.productRepository.paginte({
-      filter: {
-        category: category._id as any,
-      } as any,
-      page: pageArg,
-      size,
-      options: {
-        populate: [
-          {
-            path: 'brand',
-            select: 'name slug',
-          },
-          {
-            path: 'createdBy',
-            select: 'firstName lastName email',
-          },
-          {
-            path: 'updatedBy',
-            select: 'firstName lastName email',
-          },
-        ],
-      } as any,
-    });
-
-    return { category, products };
+    return result;
   }
 
 
@@ -245,7 +89,7 @@ export class CategoryService {
       throw new ConflictException('Category already exists');
     }
     
-    const { removeBrands: _omitRemoveBrands, brands, __hasFiles: _omitHasFiles, subcategories, ...restUpdate } = dto;
+    const { removeBrands: _omitRemoveBrands, brands, __hasFiles: _omitHasFiles, ...restUpdate } = dto;
     
     let brandsUpdate: any = {};
     if (dto?.brands || dto?.removeBrands) {
@@ -284,49 +128,9 @@ export class CategoryService {
       };
     }
     
-    let subcategoriesUpdate: any = {};
-    if (subcategories !== undefined) {
-      const subcategoriesRaw = subcategories || [];
-      const subcategoriesToSet: Types.ObjectId[] = [
-        ...new Set(
-          subcategoriesRaw.map((subcategory: any) =>
-            Types.ObjectId.createFromHexString(subcategory as unknown as string),
-          ),
-        ),
-      ];
-      
-      // Prevent category from adding itself as a subcategory
-      if (subcategoriesToSet.some(subId => subId.equals(categoryId))) {
-        throw new BadRequestException('Category cannot be added as its own subcategory');
-      }
-      
-      if (subcategoriesToSet.length > 0) {
-        const foundSubcategories = await this.categoryRepository.find({ 
-          filter: { 
-            _id: { $in: subcategoriesToSet },
-            paranoId: false,
-            freezedAt: { $exists: false }
-          } as any 
-        });
-        
-        if (foundSubcategories.length !== subcategoriesToSet.length) {
-          throw new BadRequestException('some of mentioned subcategories are not found or are archived');
-        }
-      }
-      
-      subcategoriesUpdate = {
-        subcategories: subcategoriesToSet,
-      };
-      // Always sync hasSubcategories with provided subcategories unless explicitly overridden
-      if (restUpdate.hasSubcategories === undefined) {
-        subcategoriesUpdate.hasSubcategories = subcategoriesToSet.length > 0;
-      }
-    }
-    
     const updatePayload: any = {
       updatedBy: user._id,
-      ...brandsUpdate,
-      ...subcategoriesUpdate
+      ...brandsUpdate
     };
     
     if (restUpdate && Object.keys(restUpdate).length > 0) {
@@ -384,98 +188,56 @@ return category;
     await this.productRepository.deleteMany({ category: categoryId } as any);
     return "Done";
        
-      }
+  }
 
-  /**
-   * Add subcategories to a category
-   */
   async addSubcategory(
     categoryId: Types.ObjectId,
-    subcategoryIds: (Types.ObjectId | string)[],
+    subcategoryIds: Types.ObjectId[] | string[],
     user: UserDocument,
-  ): Promise<CategoryDocument | Lean<CategoryDocument>> {
-    // Check if category exists
+  ): Promise<CategoryDocument> {
     const category = await this.categoryRepository.findOne({
-      filter: { _id: categoryId, paranoId: false, freezedAt: { $exists: false } },
+      filter: { _id: categoryId },
     });
     if (!category) {
-      throw new NotFoundException('Category not found or is archived');
+      throw new NotFoundException('Category not found');
     }
 
-    // Convert subcategory IDs to ObjectId array
-    const subcategoriesToAdd: Types.ObjectId[] = [
-      ...new Set(
-        subcategoryIds.map((subId) =>
-          subId instanceof Types.ObjectId
-            ? subId
-            : Types.ObjectId.createFromHexString(subId as string),
-        ),
-      ),
-    ];
+    const subcategoryObjectIds = subcategoryIds.map((id) =>
+      typeof id === 'string' ? Types.ObjectId.createFromHexString(id) : id,
+    );
 
-    // Prevent category from adding itself as a subcategory
-    if (subcategoriesToAdd.some((subId) => subId.equals(categoryId))) {
-      throw new BadRequestException('Category cannot be added as its own subcategory');
+    // Verify all subcategories exist
+    const existingSubcategories = await this.categoryRepository.find({
+      filter: { _id: { $in: subcategoryObjectIds } },
+    });
+    if (existingSubcategories.length !== subcategoryObjectIds.length) {
+      throw new BadRequestException('Some subcategories not found');
     }
 
-    // Validate that all subcategories exist and are not archived
-    if (subcategoriesToAdd.length > 0) {
-      const foundSubcategories = await this.categoryRepository.find({
-        filter: {
-          _id: { $in: subcategoriesToAdd },
-          paranoId: false,
-          freezedAt: { $exists: false },
-        } as any,
-      });
-
-      if (foundSubcategories.length !== subcategoriesToAdd.length) {
-        throw new BadRequestException('some of mentioned subcategories are not found or are archived');
-      }
-
-      // Check if any subcategory is already added
-      const existingSubcategories = (category.subcategories || []) as Types.ObjectId[];
-      const existingIds = new Set(
-        existingSubcategories.map((id) => {
-          if (id instanceof Types.ObjectId) {
-            return id.toString();
-          } else if (typeof id === 'string') {
-            return id;
-          } else if (id && typeof id === 'object' && '_id' in id) {
-            const idValue = (id as any)._id;
-            return idValue instanceof Types.ObjectId ? idValue.toString() : String(idValue);
-          }
-          return String(id);
-        }),
-      );
-
-      const duplicates = subcategoriesToAdd.filter((id) =>
-        existingIds.has(id.toString()),
-      );
-
-      if (duplicates.length > 0) {
-        throw new ConflictException(
-          `Subcategories with IDs ${duplicates.map((id) => id.toString()).join(', ')} are already added`,
-        );
-      }
+    // Check for circular references
+    if (subcategoryObjectIds.some((id) => id.equals(categoryId))) {
+      throw new BadRequestException('Category cannot be its own subcategory');
     }
 
-    // Add subcategories using $setUnion to avoid duplicates
-    const updatedCategory = await this.categoryRepository.findOneAndUpdate({
-      filter: { _id: categoryId },
-      update: [
-        {
-          $set: {
-            subcategories: {
-              $setUnion: [
-                { $ifNull: ['$subcategories', []] },
-                subcategoriesToAdd,
-              ],
-            },
-            hasSubcategories: true,
-            updatedBy: user._id,
-          },
-        },
-      ],
+    // Get existing subcategories and merge with new ones
+    const existingSubcategoryIds = (category.subcategories || []).map((sub: any) =>
+      typeof sub === 'object' ? sub._id : sub,
+    ) as Types.ObjectId[];
+
+    const newSubcategoryIds = [
+      ...new Set([
+        ...existingSubcategoryIds.map((id) => id.toString()),
+        ...subcategoryObjectIds.map((id) => id.toString()),
+      ]),
+    ].map((id) => Types.ObjectId.createFromHexString(id));
+
+    const updatedCategory = await this.categoryRepository.findByIdAndUpdate({
+      id: categoryId,
+      update: {
+        subcategories: newSubcategoryIds,
+        hasSubcategories: true,
+        updatedBy: user._id,
+      },
     });
 
     if (!updatedCategory) {
@@ -483,5 +245,43 @@ return category;
     }
 
     return updatedCategory;
+  }
+
+  async findOneWithProducts(
+    categoryId: Types.ObjectId,
+    query: SearchDto,
+  ): Promise<{ category: CategoryDocument; products: any }> {
+    const category = await this.categoryRepository.findOne({
+      filter: { _id: categoryId },
+      options: {
+        populate: 'products',
+      },
+    });
+
+    if (!category) {
+      throw new NotFoundException('Category not found');
+    }
+
+    const { page, size, search } = query;
+    const products = await this.productRepository.paginte({
+      filter: {
+        category: categoryId,
+        ...(search
+          ? {
+              $or: [
+                { name: { $regex: search, $options: 'i' } },
+                { description: { $regex: search, $options: 'i' } },
+              ],
+            }
+          : {}),
+      },
+      page,
+      size,
+      options: {
+        sort: { createdAt: -1 },
+      },
+    });
+
+    return { category, products };
   }
 }
