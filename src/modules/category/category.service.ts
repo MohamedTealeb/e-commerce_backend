@@ -190,63 +190,6 @@ return category;
        
   }
 
-  async addSubcategory(
-    categoryId: Types.ObjectId,
-    subcategoryIds: Types.ObjectId[] | string[],
-    user: UserDocument,
-  ): Promise<CategoryDocument> {
-    const category = await this.categoryRepository.findOne({
-      filter: { _id: categoryId },
-    });
-    if (!category) {
-      throw new NotFoundException('Category not found');
-    }
-
-    const subcategoryObjectIds = subcategoryIds.map((id) =>
-      typeof id === 'string' ? Types.ObjectId.createFromHexString(id) : id,
-    );
-
-    // Verify all subcategories exist
-    const existingSubcategories = await this.categoryRepository.find({
-      filter: { _id: { $in: subcategoryObjectIds } },
-    });
-    if (existingSubcategories.length !== subcategoryObjectIds.length) {
-      throw new BadRequestException('Some subcategories not found');
-    }
-
-    // Check for circular references
-    if (subcategoryObjectIds.some((id) => id.equals(categoryId))) {
-      throw new BadRequestException('Category cannot be its own subcategory');
-    }
-
-    // Get existing subcategories and merge with new ones
-    const existingSubcategoryIds = (category.subcategories || []).map((sub: any) =>
-      typeof sub === 'object' ? sub._id : sub,
-    ) as Types.ObjectId[];
-
-    const newSubcategoryIds = [
-      ...new Set([
-        ...existingSubcategoryIds.map((id) => id.toString()),
-        ...subcategoryObjectIds.map((id) => id.toString()),
-      ]),
-    ].map((id) => Types.ObjectId.createFromHexString(id));
-
-    const updatedCategory = await this.categoryRepository.findByIdAndUpdate({
-      id: categoryId,
-      update: {
-        subcategories: newSubcategoryIds,
-        hasSubcategories: true,
-        updatedBy: user._id,
-      },
-    });
-
-    if (!updatedCategory) {
-      throw new BadRequestException('Failed to update category');
-    }
-
-    return updatedCategory;
-  }
-
   async findOneWithProducts(
     categoryId: Types.ObjectId,
     query: SearchDto,
