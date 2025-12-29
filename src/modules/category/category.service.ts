@@ -52,7 +52,7 @@ export class CategoryService {
       page,
       size,
       options:{
-        populate:'products'
+        populate:['products', 'subcategories']
       }
     })
     return result;
@@ -64,7 +64,7 @@ export class CategoryService {
         ...(archive?{paranoId:false,freezedAt:{$exists:true}}:{}),
       },
       options:{
-        populate:'products'
+        populate:['products', 'subcategories']
       }
     })
     if(!result){
@@ -254,7 +254,10 @@ return category;
     const category = await this.categoryRepository.findOne({
       filter: { _id: categoryId },
       options: {
-        populate: 'products',
+        populate: [
+          { path: 'products' },
+          { path: 'subcategories' }
+        ],
       },
     });
 

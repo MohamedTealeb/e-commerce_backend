@@ -44,9 +44,6 @@ export class Category implements ICategory {
  @Prop({ type: Types.ObjectId, ref: 'Category' })
 parent_id?: Types.ObjectId | Category;
 
-@Prop({ type: [{ type: Types.ObjectId, ref: 'Category' }], default: [] })
-sub_categories?: Types.ObjectId[] | Category[];
-
  
     @Prop({type:[{type:Types.ObjectId,ref:"Brand"}]})
     brands?: Types.ObjectId[] | IBrand[];

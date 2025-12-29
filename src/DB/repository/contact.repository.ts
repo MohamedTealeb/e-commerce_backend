@@ -10,3 +10,4 @@ export class ContactRepository extends DataBaseRepository<Contact> {
         super(model);
     }
 }
+
