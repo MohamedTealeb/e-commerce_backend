@@ -31,3 +31,4 @@ const contactSchema = SchemaFactory.createForClass(Contact);
 
 export const ContactModel = MongooseModule.forFeature([{ name: Contact.name, schema: contactSchema }]);
 
+

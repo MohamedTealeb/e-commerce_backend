@@ -39,6 +39,27 @@ export class CategoryService {
 
  async findAll(data:SearchDto,archive:boolean=false) {
   const{page,size,search}=data;
+    
+    // Get all categories that have subcategories to exclude subcategory IDs
+    const categoriesWithSubcategories = await this.categoryRepository.find({
+      filter: {
+        subcategories: { $exists: true, $ne: [] },
+        ...(archive ? {} : { freezedAt: { $exists: false } }),
+      },
+      select: 'subcategories',
+    });
+
+    // Collect all subcategory IDs
+    const subcategoryIds = new Set<string>();
+    categoriesWithSubcategories.forEach((cat) => {
+      if (cat.subcategories && Array.isArray(cat.subcategories)) {
+        cat.subcategories.forEach((sub: any) => {
+          const subId = typeof sub === 'object' && sub._id ? sub._id.toString() : sub.toString();
+          subcategoryIds.add(subId);
+        });
+      }
+    });
+
     const result=await this.categoryRepository.paginte({
       filter:{
         ...(search ?{$or:[
@@ -47,7 +68,8 @@ export class CategoryService {
           {slogan:{$regex:search,$options:'i'}},
         ]}:{}),
         ...(archive?{paranoId:false,freezedAt:{$exists:true}}:{}),
-      
+        // Exclude categories that are used as subcategories
+        ...(subcategoryIds.size > 0 ? { _id: { $nin: Array.from(subcategoryIds).map(id => Types.ObjectId.createFromHexString(id)) } } : {}),
       },
       page,
       size,
